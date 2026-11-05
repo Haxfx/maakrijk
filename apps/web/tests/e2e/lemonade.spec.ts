@@ -47,7 +47,8 @@ test('a full round, all by tapping the stand: buy, make, open, serve four custom
 
   await press(page).click()
   await expect(page.getByTestId('making')).toBeVisible()
-  await expect(count(page, 'lemons')).toHaveText('0')
+  // Empty: the badge goes away.
+  await expect(count(page, 'lemons')).toHaveCount(0)
   await expect(count(page, 'jug')).toHaveText('4', { timeout: 6000 })
   await expect(page.getByTestId('goal')).toContainText('Tik op het bord')
 
@@ -61,7 +62,8 @@ test('a full round, all by tapping the stand: buy, make, open, serve four custom
     if (i === 2) await serve.dblclick()
     else await serve.click()
     await expect(coins(page)).toHaveText(`${8 + 2 * i} munten`)
-    await expect(count(page, 'jug')).toHaveText(`${4 - i}`)
+    if (i < 4) await expect(count(page, 'jug')).toHaveText(`${4 - i}`)
+    else await expect(count(page, 'jug')).toHaveCount(0)
   }
 
   const dialog = page.getByRole('dialog', { name: 'Ronde klaar!' })
@@ -107,8 +109,8 @@ test('refresh while the jug is being made: no second jug, ready by server time',
   await expect(page.getByTestId('making')).toBeVisible()
   await page.reload()
   await expect(coins(page)).toHaveText('8 munten')
-  await expect(count(page, 'lemons')).toHaveText('0')
-  await expect(count(page, 'sugar')).toHaveText('0')
+  await expect(count(page, 'lemons')).toHaveCount(0)
+  await expect(count(page, 'sugar')).toHaveCount(0)
   await expect(count(page, 'jug')).toHaveText('4', { timeout: 6000 })
   // Tapping the press again is refused: the jug is not empty.
   await press(page).click()
