@@ -50,7 +50,7 @@ Per beslissing: context, besluit, gevolg, status. Nieuwste onderaan. Status "Voo
 | # | Conflict | Bronnen | Keuze (voorstel) |
 |---|---|---|---|
 | C1 | Startscherm toont 6 bedrijfjes met "Beginnen", ook backlog-modi | design `9fba…` vs `04` §3 en §8 ("pas zichtbaar als inhoud werkt", geen "binnenkort") | Alleen werkende modi tonen. Spec wint. |
-| C2 | "Samen groeien" rangschikt kinderen op sterren | design `f4b8…` vs `01` §2 (geen druk) | **Vraag aan gebruiker.** Voorstel: alleen gezamenlijk familietotaal, geen ranglijst. Buiten scope tot een latere release. |
+| C2 | "Samen groeien" rangschikt kinderen op sterren | design `f4b8…` vs `01` §2 (geen druk) | Besloten door gebruiker (2026-11-05): ranglijst alleen met gekoppelde vriendjes/vriendinnetjes, zie D10. Geen globale ranglijst. |
 | C3 | Prijzen in designs (tractor 50, opslag 30) | design `239d…` vs `03` §6 (tweede tractor 28) | Spec wint; designbedragen zijn voorbeeld. |
 | C4 | Onderste nav-labels verschillen per design (Dorp / Mijn bedrijfjes / Spelen) | alle designs | Voorstel: "Mijn bedrijfjes", "Bouwen", "Mijn sterren". |
 | C5 | Limonade "Hoofdstuk 2 · 2/6" en boerderij "4/8" | design `f4b8…` vs `04` §3 (5 resp. 8 hoofdstukken) | Spec wint; telling uit definities. |
@@ -63,3 +63,15 @@ Per beslissing: context, besluit, gevolg, status. Nieuwste onderaan. Status "Voo
 **Opties.** (a) Modellen in code, flat-shaded; (b) glTF-modellen uit Blender, zelf gemaakt; (c) CC0-pakketten (bijv. Kenney, Quaternius) als basis. Licenties per asset vastleggen.
 **Voorstel.** Start met (a) voor R0.2 om de techniek te bewijzen; beslis vóór R0.3 over (b) of (c).
 **Status.** Open.
+
+## D10 — Vriendjes-ranglijst via koppelcode
+**Context.** C2. Gebruiker, 2026-11-05: een ranglijst die je kunt inzien met kinderen die dezelfde code gebruiken om te koppelen. Niet met alle gebruikers, alleen vriendjes en vriendinnetjes.
+**Besluit.** Ranglijst op spelerssterren, alleen binnen een vriendengroep die via een gedeelde code is gekoppeld. Geen globale of openbare ranglijst, geen zoekfunctie naar andere spelers.
+**Uitwerking (voorstel, te bevestigen bij het detailleren van de release).**
+- Een groep heeft een korte, willekeurige code (niet raadbaar, verloopbaar, intrekbaar).
+- Koppelen en ontkoppelen achter de ouderpoort. Een ouder kan het eigen kind altijd uit een groep halen.
+- Zichtbaar voor groepsleden: alleen bijnaam, avatar en sterrentotaal. Geen bedrijfsgegevens, geen chat of berichten.
+- Maximale groepsgrootte (voorstel 12). Rate limiting op het invoeren van codes.
+- Toon: "Iedereen groeit op zijn eigen manier"; geen negatieve labels voor de laatste plek.
+**Gevolg.** Eerste functie die gegevens tussen huishoudens deelt. Nodig: privacybeoordeling (AVG voor minderjarigen) vóór publieke release, en toetsing aan Apple's Kids-categorie-regels. Hangt af van de sterrenledger (0.3).
+**Status.** Besloten (scope); uitwerking voorstel. Gepland als release 0.4.

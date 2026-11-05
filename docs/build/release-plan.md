@@ -1,6 +1,6 @@
 # Maakrijk — releaseplan (voorstel)
 
-Status: voorstel 2026-11-05, wacht op goedkeuring. Releases 0.1–0.3 zijn volledig uitgewerkt. Latere releases zijn een richting; ze worden uitgewerkt en opnieuw ter goedkeuring voorgelegd voordat ze starten.
+Status: goedgekeurd door gebruiker 2026-11-05 (0.1–0.3 in detail; latere releases worden vóór start opnieuw voorgelegd). Releases 0.1–0.3 zijn volledig uitgewerkt. Latere releases zijn een richting; ze worden uitgewerkt en opnieuw ter goedkeuring voorgelegd voordat ze starten.
 
 ## Werkwijze per release
 
@@ -120,13 +120,14 @@ Status: voorstel 2026-11-05, wacht op goedkeuring. Releases 0.1–0.3 zijn volle
 
 | Release | Doel | Toetst platform op |
 |---|---|---|
-| 0.4 boerderij-wortels | Akker, tractor, wassen/verpakken, orders; extra akker en tweede tractor; hoofdstukken 1–3 | Source, Vehicle, unieke reserveringen, meerdere bronnen |
-| 0.5 boerderij-melk | Koe verzorgen, melkketen, hoofdstukken 4–8 | CareState zonder afwezigheidsstraf, samengestelde ketens |
-| 0.6 speelgoedfabriek | Auto + 4 wielen + doos, werkbanken, lift, tweede verdieping | Samengestelde recepten, parallelle werkplekken, één inventaris per lading |
-| 0.7 builder-sandbox | Template openen, akker/tractor/route toevoegen, valideren, testspelen | Zelfde runtime, sandbox zonder campagnebeloning |
-| 0.8 plantenkraam | Eén plant, kas | Nieuw scenario zonder wijziging aan gedeelde systemen (`05` §16) |
-| 0.9 armbandjesatelier | Patroon volgens klantwens | Scenario-eigen regel via rules-interface |
-| 0.10 ouders en afronding | Ouderpagina, resetbeleid, audio, PWA | — |
-| 0.11 iOS-shell | Capacitor/WKWebView-build, test op echt apparaat, Kids-categorie-checklist | Auth via header, WebGL op iOS |
+| 0.4 vriendjes-ranglijst | Groep koppelen met code (ouderpoort), ranglijst op sterren alleen binnen de groep (D10) | Sterrenledger, autorisatie tussen huishoudens |
+| 0.5 boerderij-wortels | Akker, tractor, wassen/verpakken, orders; extra akker en tweede tractor; hoofdstukken 1–3 | Source, Vehicle, unieke reserveringen, meerdere bronnen |
+| 0.6 boerderij-melk | Koe verzorgen, melkketen, hoofdstukken 4–8 | CareState zonder afwezigheidsstraf, samengestelde ketens |
+| 0.7 speelgoedfabriek | Auto + 4 wielen + doos, werkbanken, lift, tweede verdieping | Samengestelde recepten, parallelle werkplekken, één inventaris per lading |
+| 0.8 builder-sandbox | Template openen, akker/tractor/route toevoegen, valideren, testspelen | Zelfde runtime, sandbox zonder campagnebeloning |
+| 0.9 plantenkraam | Eén plant, kas | Nieuw scenario zonder wijziging aan gedeelde systemen (`05` §16) |
+| 0.10 armbandjesatelier | Patroon volgens klantwens | Scenario-eigen regel via rules-interface |
+| 0.11 ouders en afronding | Ouderpagina, resetbeleid, audio, PWA | — |
+| 0.12 iOS-shell | Capacitor/WKWebView-build, test op echt apparaat, Kids-categorie-checklist | Auth via header, WebGL op iOS |
 
 Een vroege iOS-spike (één scherm in een shell op een echt apparaat) kan na 0.2 worden ingevoegd als je dat risico eerder wilt afdekken.
