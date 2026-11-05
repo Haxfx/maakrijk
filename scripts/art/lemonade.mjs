@@ -276,5 +276,35 @@ put('want', svg(90, 84, `
 <path d="M34 30 L56 30 L54 52 L36 52 Z" fill="#ffe066" stroke="none"/>
 <path d="M50 14 L46 34" stroke="#e9584a" stroke-width="4"/>`))
 
+// ---------------------------------------------------------------- upgrades (clicker, D13)
+// Lemon tree: grows next to the crate once bought; lemons are then free.
+put('lemon-tree', svg(200, 260, `
+<path d="M88 256 L92 160 Q100 150 108 160 L112 256 Z" fill="#9a6235"/>
+<path d="M100 14 C56 14 32 46 38 78 C12 88 8 132 34 150 C32 180 70 196 100 184 C130 196 168 180 166 150 C192 132 188 88 162 78 C168 46 144 14 100 14 Z" fill="#5b963f"/>
+<path stroke="none" fill="#7fb653" d="M52 92 C46 66 70 44 94 46 C78 62 72 78 76 98 Z"/>
+${[[62,110],[104,70],[140,104],[86,140],[128,150],[150,70]].map(([x,y]) => `<ellipse cx="${x}" cy="${y}" rx="15" ry="11" fill="#ffd93b" stroke-width="3"/><path d="M${x+12} ${y-6} l6 -4" stroke-width="3"/>`).join('')}`))
+
+// Sprout in a pot: tap it to buy the lemon tree.
+put('sprout', svg(90, 110, `
+<path d="M45 64 Q44 40 46 24" fill="none" stroke="#4a8034" stroke-width="5"/>
+<path d="M46 34 C30 18 12 24 10 32 C24 40 38 40 46 34 Z" fill="#7fb653" stroke-width="3"/>
+<path d="M46 26 C60 8 78 12 82 20 C70 32 56 32 46 26 Z" fill="#7fb653" stroke-width="3"/>
+<path d="M16 60 L74 60 L66 104 L24 104 Z" fill="#d9734a"/>
+<rect x="12" y="56" width="66" height="12" rx="4" fill="#e9875e"/>`))
+
+// "Help wanted" sign: tap it to hire a helper. Icon only; words live in the language file.
+put('help-sign', svg(110, 150, `
+<rect x="50" y="70" width="10" height="78" fill="#9a6235"/>
+<rect x="6" y="8" width="98" height="74" rx="12" fill="#f2dca6"/>
+<circle cx="44" cy="34" r="12" fill="#f6d5b8" stroke-width="3"/>
+<path d="M26 66 Q44 46 62 66 Z" fill="#e9584a" stroke-width="3"/>
+<circle cx="80" cy="46" r="15" fill="#f2bb45" stroke-width="3"/>
+<path d="M80 38 L80 54 M72 46 L88 46" stroke="#fffcf5" stroke-width="5"/>`))
+
+// Apron worn by helpers, drawn over a child.
+put('apron', svg(70, 80, `
+<path d="M14 6 Q35 0 56 6 L60 74 Q35 80 10 74 Z" fill="#fff6c2"/>
+<path d="M22 30 L48 30 L46 50 L24 50 Z" fill="#ffd93b" stroke-width="3"/>`))
+
 for (const [name, s] of Object.entries(files)) writeFileSync(`${OUT}/${name}.svg`, s)
 console.log(Object.keys(files).length, 'files')

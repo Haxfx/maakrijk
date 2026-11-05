@@ -1,51 +1,54 @@
-// Read model of the lemonade stand (services/api/src/scenarios/lemonade/rules.rs `view`).
+// Read model of the lemonade clicker (services/api/src/scenarios/lemonade/rules.rs `view`).
 
-export type NextStep = 'buy' | 'make' | 'open' | 'serve' | 'wait' | 'summary'
-export type CustomerState = 'coming' | 'waiting' | 'served' | 'left'
+export type UpgradeId = 'press' | 'helper' | 'tree'
+/** 'tap' or 'upgrade:<id>' (the cheapest upgrade the child can afford). */
+export type NextStep = 'tap' | `upgrade:${UpgradeId}`
 
-export interface LemonadeCustomer {
-  id: number
-  state: CustomerState
-  arrivesAt: string
+export interface LemonadeUpgrade {
+  id: UpgradeId
+  level: number
+  maxLevel: number
+  /** Null at the highest level. */
+  nextPrice: number | null
 }
 
-export interface LemonadeSummary {
-  roundId: number
-  sold: number
-  materials: number
-  left: number
+export interface LemonadeStats {
   cupsSold: number
-  customers: number
-  seen: boolean
+  cupsByHelpers: number
+  revenue: number
+  materials: number
+  profit: number
+  invested: number
 }
 
 export interface LemonadeView {
-  stateSchema: number
-  balanceVersion: string
-  prices: { lemon: number; sugar: number; cup: number }
-  capacity: { lemons: number; sugar: number; jugCups: number }
-  recipe: { lemons: number; sugar: number; cups: number; durationMs: number }
-  stock: { lemons: number; sugar: number }
-  forOneJug: { lemons: number; sugar: number }
-  jug: { cups: number; making: { startedAt: string; doneAt: string; msLeft: number } | null }
-  round: {
-    id: number
-    openedAt: string
-    customers: LemonadeCustomer[]
-    served: number
-    demand: number
-    sold: number
-  } | null
-  roundsPlayed: number
-  lastRound: LemonadeSummary | null
-  nextStep: NextStep
   coins: number
+  cupPrice: number
+  jugCost: number
+  cupsPerJug: number
+  cupsPerTap: number
+  helperMilliCupsPerSecond: number
+  /** Coins per minute from helpers, after ingredients. */
+  perMinute: number
+  jugLeft: number
+  upgrades: LemonadeUpgrade[]
+  stats: LemonadeStats
+  nextStep: NextStep
+  awayCapMs: number
 }
 
 export type LemonadeCommand =
-  | { type: 'buyStock'; lemons: number; sugar: number }
-  | { type: 'makeJug' }
-  | { type: 'openStand' }
-  | { type: 'serveCustomer'; customerId: number }
-  | { type: 'closeRound' }
-  | { type: 'seenRound'; roundId: number }
+  | { type: 'tap'; count: number }
+  | { type: 'buyUpgrade'; upgrade: UpgradeId }
+  | { type: 'collect' }
+
+/** Event data (services/api/src/scenarios/lemonade/rules.rs). */
+export interface SoldData {
+  cups: number
+  revenue: number
+  materials: number
+}
+export interface AwayData extends SoldData {
+  awayMs: number
+  capped: boolean
+}
