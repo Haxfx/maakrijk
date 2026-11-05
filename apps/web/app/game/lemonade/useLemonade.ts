@@ -63,16 +63,20 @@ export function useLemonade(gameId: string, onAnswer: (g: GameState<LemonadeView
     noticeTimer = setTimeout(() => (notice.value = null), 4000)
   }
 
-  async function send(cmd: LemonadeCommand) {
-    if (busy.value) return
+  /** Send one command. Resolves true when the server accepted it, false when
+   *  it was refused (the reason is shown) or skipped because one is in flight. */
+  async function send(cmd: LemonadeCommand): Promise<boolean> {
+    if (busy.value) return false
     busy.value = true
     notice.value = null
     try {
       accept(await sendCommand<LemonadeView>(gameId, cmd))
+      return true
     } catch (e) {
       say(e instanceof ApiError ? e.code : 'unknown')
       // Time may have moved on; show the server's current state.
       await refresh()
+      return false
     } finally {
       busy.value = false
     }

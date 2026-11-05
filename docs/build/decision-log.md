@@ -87,3 +87,12 @@ Per beslissing: context, besluit, gevolg, status. Nieuwste onderaan. Status "Voo
 - `apps/web/app/locales/nl/index.ts` voegt ze samen tot `t`; componenten importeren alleen `~/locales/nl`.
 - Test `tests/unit/texts.test.ts` bewaakt: geen lege teksten, elke contract-weigeringscode heeft tekst, een game overschrijft geen gedeelde sleutels.
 **Status.** Besloten, gebouwd in 0.2 (`feature/0.2-taalbestanden`).
+
+## D12 — Acties gebeuren in de wereld, niet in een knoppenpaneel
+**Besluit (gebruiker, 2026-11-05, feedback RC 2 G2).** "De activiteiten, upgrades en acties vanuit de user moeten op de kraam zelf gebeuren en niet als tekst eronder met een knopje."
+- De speler tikt op het object zelf: kist (citroen kopen), suikerpot (suiker kopen), pers (limonade maken), bordje aan de toonbank (kraam open/dicht), klant (beker geven).
+- Er is geen actiepaneel onder de wereld. Tellers staan als kleine badges op de objecten; het doelkaartje wijst de volgende stap aan, plus een pulserende ring en een pijl op het object.
+- Techniek: de gedeelde component `WorldHotspot` legt echte DOM-knoppen precies over de getekende objecten. De stage meldt elk getekend frame (`onRender`, `toScreen`), dus de knoppen bewegen mee met pan, zoom en lopende klanten. Toetsenbord, schermlezer (label per object) en tikdoelen ≥ 48 px blijven daardoor werken (`05` §12).
+- Wijkt af van het design (`f4b89fd1…`), dat een knop "Geef een beker" onder de wereld toont. De gebruiker gaat voor.
+- Upgrades (0.3) volgen hetzelfde principe: je tikt op het object dat je wilt verbeteren.
+**Status.** Besloten, gebouwd in `feature/0.2-acties-in-wereld`.
