@@ -75,3 +75,11 @@ Per beslissing: context, besluit, gevolg, status. Nieuwste onderaan. Status "Voo
 - Toon: "Iedereen groeit op zijn eigen manier"; geen negatieve labels voor de laatste plek.
 **Gevolg.** Eerste functie die gegevens tussen huishoudens deelt. Nodig: privacybeoordeling (AVG voor minderjarigen) vóór publieke release, en toetsing aan Apple's Kids-categorie-regels. Hangt af van de sterrenledger (0.3).
 **Status.** Besloten (scope); uitwerking voorstel. Gepland als release 0.4.
+
+## D11 — Taalbestanden per game
+**Besluit (gebruiker, 2026-11-05).** Alle zichtbare teksten staan in taalbestanden, zodat woorden per game later aan te passen zijn zonder code te wijzigen.
+- `apps/web/app/locales/nl/common.ts`: app, spelers, instellingen, platformfouten en gedeelde game-core-weigeringen.
+- `apps/web/app/locales/nl/games/<game>.ts`: teksten en weigeringscodes van één game.
+- `apps/web/app/locales/nl/index.ts` voegt ze samen tot `t`; componenten importeren alleen `~/locales/nl`.
+- Test `tests/unit/texts.test.ts` bewaakt: geen lege teksten, elke contract-weigeringscode heeft tekst, een game overschrijft geen gedeelde sleutels.
+**Status.** Besloten, gebouwd in 0.2 (`feature/0.2-taalbestanden`).
