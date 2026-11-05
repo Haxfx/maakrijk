@@ -36,6 +36,12 @@ export const t = {
     title: 'Wat ga jij maken?',
     noBusinesses: 'Je hebt nog geen bedrijfjes.',
   },
+  stage: {
+    seeAll: 'Alles bekijken',
+    noWebglTitle: 'Je apparaat kan de spelwereld niet tekenen.',
+    noWebglBody: 'Je kunt wel gewoon spelen met de knoppen hieronder.',
+    worldLabel: 'Spelwereld',
+  },
   settings: {
     title: 'Instellingen',
     reduceMotion: 'Minder beweging',
