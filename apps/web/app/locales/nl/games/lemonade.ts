@@ -24,6 +24,8 @@ export const lemonade = {
     jug: (n: number) => `In de kan: ${bekers(n)}`,
     /** Floating text after a tap or helper sale. */
     earned: (n: number) => `+${n}`,
+    /** Floating text when a tap starts a new jug: its ingredients are paid. */
+    ingredients: (n: number) => `-${n} citroenen en suiker`,
   },
   /** Upgrades, by id (manifest v2). `effect` describes one level. */
   upgrades: {

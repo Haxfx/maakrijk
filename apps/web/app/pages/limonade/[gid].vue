@@ -4,7 +4,7 @@ import type { ScreenRect } from '~/components/game/WorldHotspot.vue'
 import type { GameState } from '~/game/client'
 import type { Stage } from '~/game/stage'
 import type { LemonadeView, UpgradeId } from '~/game/lemonade/types'
-import { useLemonade } from '~/game/lemonade/useLemonade'
+import { jugsForTaps, useLemonade } from '~/game/lemonade/useLemonade'
 import { LEMONADE_ART, LEMONADE_BACKGROUND, LEMONADE_BOUNDS, LEMONADE_PROJECTION, LemonadeWorld, type SpotId } from '~/game/lemonade/world'
 import { t } from '~/locales/nl'
 import { useHouseholdStore } from '~/stores/household'
@@ -29,7 +29,7 @@ function show(g: GameState<LemonadeView>) {
   world.value.update(g.view)
 }
 
-const { game, view, coins, loadError, busy, notice, away, refresh, tap, buy } = useLemonade(gameId, show)
+const { game, view, coins, loadError, busy, notice, away, pendingTaps, refresh, tap, buy } = useLemonade(gameId, show)
 
 /** Tap targets in screen pixels, moved after every drawn frame. */
 const spots = shallowRef<{ id: SpotId; rect: ScreenRect }[]>([])
@@ -87,12 +87,12 @@ const hintId = computed<SpotId | null>(() => {
 const goal = computed(() => (view.value?.nextStep.startsWith('upgrade') ? t.lemonade.goal.upgrade : t.lemonade.goal.tap))
 
 /** Floating "+2" texts over the press; purely decoration. */
-const floats = ref<{ id: number; text: string; x: number }[]>([])
+const floats = ref<{ id: number; text: string; x: number; cost?: boolean }[]>([])
 let floatId = 0
-function float(text: string) {
+function float(text: string, cost = false) {
   const id = ++floatId
-  floats.value = [...floats.value.slice(-6), { id, text, x: Math.round(Math.random() * 40 - 20) }]
-  setTimeout(() => (floats.value = floats.value.filter((f) => f.id !== id)), 900)
+  floats.value = [...floats.value.slice(-6), { id, text, cost, x: cost ? 0 : Math.round(Math.random() * 40 - 20) }]
+  setTimeout(() => (floats.value = floats.value.filter((f) => f.id !== id)), cost ? 1400 : 900)
 }
 
 const shaking = ref<SpotId | null>(null)
@@ -111,6 +111,9 @@ function onTap(id: SpotId) {
   const v = view.value
   if (!v) return
   if (id === 'press') {
+    // The first cup of a new jug pays for its ingredients: show why coins dip.
+    const p = pendingTaps.value
+    if (jugsForTaps(v, p + 1) > jugsForTaps(v, p)) float(t.lemonade.ingredients(v.jugCost), true)
     tap()
     world.value?.tapped()
     float(t.lemonade.earned(v.cupsPerTap * v.cupPrice))
@@ -188,7 +191,9 @@ function label(id: SpotId, v: LemonadeView): string {
               <span
                 v-for="f in floats"
                 :key="f.id"
-                class="float pointer-events-none absolute left-1/2 top-0 text-2xl font-extrabold text-gold"
+                class="float pointer-events-none absolute left-1/2 top-0 font-extrabold"
+                :class="f.cost ? 'cost text-base text-white' : 'text-2xl text-gold'"
+                :data-testid="f.cost ? 'float-cost' : undefined"
                 :style="{ marginLeft: `${f.x}px` }"
                 aria-hidden="true"
               >{{ f.text }}</span>
@@ -259,7 +264,17 @@ function label(id: SpotId, v: LemonadeView): string {
 .float {
   transform: translateX(-50%);
   text-shadow: 0 2px 0 #5b3a24;
+  white-space: nowrap;
   animation: rise 0.9s ease-out forwards;
+}
+.float.cost {
+  top: auto;
+  bottom: -1.5rem;
+  border-radius: 9999px;
+  background: var(--color-coral);
+  padding: 0.125rem 0.5rem;
+  text-shadow: none;
+  animation-duration: 1.4s;
 }
 @keyframes rise {
   from {
