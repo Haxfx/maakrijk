@@ -14,6 +14,6 @@ defineEmits<{ retry: [] }>()
         {{ t.common.retry }}
       </button>
     </div>
-    <div v-else class="size-10 animate-spin rounded-full border-4 border-teal/30 border-t-teal" aria-label="Laden" />
+    <div v-else class="size-10 animate-spin rounded-full border-4 border-teal/30 border-t-teal" :aria-label="t.common.loading" />
   </div>
 </template>
