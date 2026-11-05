@@ -1,4 +1,4 @@
-//! Rule tests for the lemonade stand, without a database.
+//! Rule tests for the lemonade clicker, without a database.
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
 use rand::rngs::StdRng;
@@ -15,8 +15,9 @@ struct Game {
     state: Value,
     coins: i64,
     ledger: i64,
+    refs: std::collections::BTreeSet<String>,
     now: DateTime<Utc>,
-    events: Vec<String>,
+    events: Vec<(String, Value)>,
 }
 
 impl Game {
@@ -28,6 +29,7 @@ impl Game {
             state: start.state,
             coins: start.coins,
             ledger: start.coins,
+            refs: Default::default(),
             now: Utc.with_ymd_and_hms(2026, 11, 5, 10, 0, 0).unwrap(),
             events: vec![],
         }
@@ -45,14 +47,31 @@ impl Game {
             .apply(&mut state, &cmd, &mut ctx)
             .map_err(|e| e.code.to_string())?;
         let (coins, ledger, events) = ctx.into_parts();
+        let mut balance = self.coins;
+        for l in &ledger {
+            balance += l.amount;
+            assert!(balance >= 0, "balance after {} went negative", l.reference);
+            assert!(
+                self.refs.insert(l.reference.clone()),
+                "duplicate ref {}",
+                l.reference
+            );
+        }
         self.ledger += ledger.iter().map(|l| l.amount).sum::<i64>();
         assert_eq!(self.ledger, coins, "ledger sum must equal coins");
-        assert!(coins >= 0);
         self.state = state;
         self.coins = coins;
         self.events
-            .extend(events.into_iter().map(|e| e.kind.to_string()));
+            .extend(events.into_iter().map(|e| (e.kind.to_string(), e.data)));
         Ok(())
+    }
+
+    fn tap(&mut self, n: i64) -> Result<(), String> {
+        self.send(json!({ "type": "tap", "count": n }))
+    }
+
+    fn buy(&mut self, id: &str) -> Result<(), String> {
+        self.send(json!({ "type": "buyUpgrade", "upgrade": id }))
     }
 
     fn wait(&mut self, ms: i64) {
@@ -63,284 +82,216 @@ impl Game {
         let mut state = self.state.clone();
         let mut ctx = RuleCtx::new(self.now, None, self.coins);
         self.rules.settle(&mut state, &mut ctx).unwrap();
-        self.rules.view(&state, self.coins, self.now).unwrap()
+        let coins = ctx.coins();
+        self.rules.view(&state, coins, self.now).unwrap()
     }
 
     fn typed(&self) -> State {
         serde_json::from_value(self.state.clone()).unwrap()
     }
 
-    fn err(&mut self, cmd: Value) -> String {
-        self.send(cmd).expect_err("command should be refused")
-    }
-
-    /// Play one good round from whatever state the game is in.
-    fn play_round(&mut self) {
-        if self.typed().round.is_some() {
-            self.send(json!({ "type": "closeRound" })).unwrap();
-        }
-        let v = self.view();
-        if v["jug"]["cups"] == 0 && v["jug"]["making"].is_null() {
-            let need = &v["forOneJug"];
-            let (l, s) = (
-                need["lemons"].as_i64().unwrap(),
-                need["sugar"].as_i64().unwrap(),
-            );
-            if l + s > 0 {
-                self.send(json!({ "type": "buyStock", "lemons": l, "sugar": s }))
-                    .unwrap();
-            }
-            self.send(json!({ "type": "makeJug" })).unwrap();
-        }
-        if let Some(left) = self.view()["jug"]["making"]["msLeft"].as_i64() {
-            self.wait(left);
-        }
-        self.send(json!({ "type": "openStand" })).unwrap();
-        for id in 1..=4 {
-            self.wait(2500);
-            let v = self.view();
-            if v["round"].is_null() {
-                break;
-            }
-            if v["jug"]["cups"] == 0 {
-                break;
-            }
-            self.send(json!({ "type": "serveCustomer", "customerId": id }))
-                .unwrap();
-        }
-        if self.typed().round.is_some() {
-            self.send(json!({ "type": "closeRound" })).unwrap();
-        }
+    fn last_event(&self, kind: &str) -> Value {
+        self.events
+            .iter()
+            .rev()
+            .find(|(k, _)| k == kind)
+            .map(|(_, d)| d.clone())
+            .unwrap_or_else(|| panic!("no {kind} event"))
     }
 }
 
 #[test]
-fn first_round_follows_the_balance_doc() {
+fn first_tap_buys_a_jug_and_sells_a_cup() {
     let mut g = Game::new();
     assert_eq!(g.coins, 12);
-    assert_eq!(g.view()["nextStep"], "buy");
-
-    g.send(json!({ "type": "buyStock", "lemons": 3, "sugar": 1 }))
-        .unwrap();
-    assert_eq!(g.coins, 8);
-    assert_eq!(g.view()["stock"], json!({ "lemons": 3, "sugar": 1 }));
-    assert_eq!(g.view()["nextStep"], "make");
-
-    g.send(json!({ "type": "makeJug" })).unwrap();
-    assert_eq!(g.view()["stock"], json!({ "lemons": 0, "sugar": 0 }));
-    assert_eq!(g.view()["jug"]["making"]["msLeft"], 3000);
-    assert_eq!(g.view()["nextStep"], "open");
-    g.wait(3000);
-    assert_eq!(g.view()["jug"]["cups"], 4);
-
-    g.send(json!({ "type": "openStand" })).unwrap();
-    assert_eq!(g.view()["nextStep"], "wait");
-    assert_eq!(
-        g.err(json!({ "type": "serveCustomer", "customerId": 1 })),
-        "customer_not_waiting"
-    );
-    for id in 1..=4 {
-        g.wait(if id == 1 { 1000 } else { 2500 });
-        assert_eq!(g.view()["nextStep"], "serve");
-        g.send(json!({ "type": "serveCustomer", "customerId": id }))
-            .unwrap();
-    }
-    assert_eq!(g.coins, 16);
-    let v = g.view();
-    assert!(v["round"].is_null(), "round closes after the last customer");
-    assert_eq!(v["lastRound"]["sold"], 8);
-    assert_eq!(v["lastRound"]["materials"], 4);
-    assert_eq!(v["lastRound"]["left"], 4);
-    assert_eq!(v["lastRound"]["seen"], false);
-    assert_eq!(v["nextStep"], "summary");
-
-    g.send(json!({ "type": "seenRound", "roundId": 1 }))
-        .unwrap();
-    assert_eq!(g.view()["nextStep"], "buy");
-    for kind in [
-        "StockBought",
-        "JugStarted",
-        "JugReady",
-        "StandOpened",
-        "CustomerArrived",
-        "CustomerServed",
-        "RoundClosed",
-    ] {
-        assert!(g.events.iter().any(|e| e == kind), "missing event {kind}");
-    }
-}
-
-#[test]
-fn refusals_have_codes_and_change_nothing() {
-    let mut g = Game::new();
-    assert_eq!(g.err(json!({ "type": "makeJug" })), "not_enough_stock");
-    assert_eq!(g.err(json!({ "type": "openStand" })), "nothing_to_sell");
-    assert_eq!(g.err(json!({ "type": "closeRound" })), "no_round");
-    assert_eq!(
-        g.err(json!({ "type": "serveCustomer", "customerId": 1 })),
-        "no_round"
-    );
-    assert_eq!(
-        g.err(json!({ "type": "buyStock", "lemons": 13, "sugar": 0 })),
-        "storage_full"
-    );
-    assert_eq!(
-        g.err(json!({ "type": "buyStock", "lemons": 0, "sugar": 5 })),
-        "storage_full"
-    );
-    assert_eq!(
-        g.err(json!({ "type": "buyStock", "lemons": 0, "sugar": 0 })),
-        "invalid_command"
-    );
-    assert_eq!(
-        g.err(json!({ "type": "buyStock", "lemons": -1, "sugar": 2 })),
-        "invalid_command"
-    );
-    assert_eq!(g.err(json!({ "type": "fly" })), "invalid_command");
-    assert_eq!(
-        g.err(json!({ "type": "makeJug", "extra": 1 })),
-        "invalid_command"
-    );
-    // 12 lemons leave no coins for sugar: the child would get stuck.
-    assert_eq!(
-        g.err(json!({ "type": "buyStock", "lemons": 12, "sugar": 0 })),
-        "would_get_stuck"
-    );
-    assert_eq!(g.coins, 12);
-    assert_eq!(g.state, Game::new().state);
-
-    g.send(json!({ "type": "buyStock", "lemons": 6, "sugar": 2 }))
-        .unwrap();
-    g.send(json!({ "type": "makeJug" })).unwrap();
-    assert_eq!(g.err(json!({ "type": "makeJug" })), "jug_busy");
-    g.wait(3000);
-    assert_eq!(g.err(json!({ "type": "makeJug" })), "jug_not_empty");
-    g.send(json!({ "type": "openStand" })).unwrap();
-    assert_eq!(g.err(json!({ "type": "openStand" })), "round_open");
-}
-
-#[test]
-fn not_enough_coins_is_refused() {
-    let mut g = Game::new();
-    g.send(json!({ "type": "buyStock", "lemons": 6, "sugar": 2 }))
-        .unwrap();
-    g.send(json!({ "type": "buyStock", "lemons": 3, "sugar": 1 }))
-        .unwrap();
-    assert_eq!(g.coins, 0);
-    assert_eq!(
-        g.err(json!({ "type": "buyStock", "lemons": 1, "sugar": 0 })),
-        "not_enough_coins"
-    );
-}
-
-#[test]
-fn closing_early_lets_customers_leave_and_keeps_cups() {
-    let mut g = Game::new();
-    g.send(json!({ "type": "buyStock", "lemons": 3, "sugar": 1 }))
-        .unwrap();
-    g.send(json!({ "type": "makeJug" })).unwrap();
-    g.wait(3000);
-    g.send(json!({ "type": "openStand" })).unwrap();
-    g.wait(1000);
-    g.send(json!({ "type": "serveCustomer", "customerId": 1 }))
-        .unwrap();
-    g.send(json!({ "type": "closeRound" })).unwrap();
-    let v = g.view();
-    assert_eq!(v["jug"]["cups"], 3);
-    assert_eq!(v["lastRound"]["sold"], 2);
-    assert_eq!(v["lastRound"]["materials"], 1);
-    assert_eq!(v["lastRound"]["left"], 1);
+    assert_eq!(g.view()["nextStep"], "tap");
+    g.tap(1).unwrap();
+    // +2 for the cup, -4 for the ingredients of a jug of 4.
     assert_eq!(g.coins, 10);
-    // Seeing the summary of another round is harmless.
-    g.send(json!({ "type": "seenRound", "roundId": 9 }))
-        .unwrap();
-    assert_eq!(g.view()["nextStep"], "summary");
-    g.send(json!({ "type": "seenRound", "roundId": 1 }))
-        .unwrap();
-    assert_eq!(g.view()["nextStep"], "open");
+    assert_eq!(g.typed().jug_left, 3);
+    g.tap(3).unwrap();
+    assert_eq!(g.coins, 16);
+    assert_eq!(g.typed().jug_left, 0);
+    let v = g.view();
+    assert_eq!(v["stats"]["cupsSold"], 4);
+    assert_eq!(v["stats"]["revenue"], 8);
+    assert_eq!(v["stats"]["materials"], 4);
+    assert_eq!(v["stats"]["profit"], 4);
 }
 
 #[test]
-fn running_out_of_cups_mid_round_points_to_the_next_jug() {
+fn a_batch_spanning_jugs_books_every_jug() {
     let mut g = Game::new();
-    g.send(json!({ "type": "buyStock", "lemons": 6, "sugar": 2 }))
-        .unwrap();
-    g.send(json!({ "type": "makeJug" })).unwrap();
-    g.wait(3000);
-    g.send(json!({ "type": "openStand" })).unwrap();
+    g.tap(9).unwrap();
+    // 9 cups = 3 jugs: 18 - 12.
+    assert_eq!(g.coins, 18);
+    assert_eq!(g.typed().jug_left, 3);
+    assert_eq!(g.last_event("CupsSold")["materials"], 12);
+}
+
+#[test]
+fn taps_are_limited_by_a_refilling_allowance() {
+    let mut g = Game::new();
+    g.tap(24).unwrap();
+    assert_eq!(g.last_event("CupsSold")["taps"], 24);
+    assert_eq!(g.tap(5).unwrap_err(), "too_fast");
+    g.wait(500);
+    g.tap(20).unwrap();
+    let e = g.last_event("CupsSold");
+    assert_eq!(e["taps"], 6);
+    assert_eq!(e["ignored"], 14);
+    assert_eq!(g.tap(0).unwrap_err(), "invalid_command");
+    assert_eq!(g.tap(101).unwrap_err(), "invalid_command");
+}
+
+#[test]
+fn the_better_press_makes_taps_worth_more() {
+    let mut g = Game::new();
+    assert_eq!(g.buy("press").unwrap_err(), "would_get_stuck");
+    g.tap(4).unwrap(); // 16
+    assert_eq!(g.view()["nextStep"], "upgrade:press");
+    g.buy("press").unwrap();
+    assert_eq!(g.coins, 6);
+    assert_eq!(g.view()["cupsPerTap"], 2);
+    g.tap(2).unwrap(); // 4 cups: +8 -4
+    assert_eq!(g.coins, 10);
+    let v = g.view();
+    assert_eq!(v["upgrades"][0]["level"], 1);
+    assert_eq!(v["upgrades"][0]["nextPrice"], 30);
+    assert_eq!(v["stats"]["invested"], 10);
+}
+
+#[test]
+fn an_upgrade_that_would_leave_you_stuck_is_refused() {
+    let mut g = Game::new();
+    g.tap(4).unwrap(); // 16 coins, jug empty
     g.wait(1000);
-    for id in 1..=4 {
-        if id > 1 {
-            g.wait(2500);
-        }
-        if id == 4 {
-            // Simulate a slow child: cups are gone before customer 4 is served.
-            break;
-        }
-        g.send(json!({ "type": "serveCustomer", "customerId": id }))
-            .unwrap();
-    }
-    g.send(json!({ "type": "makeJug" })).unwrap_err(); // jug still has a cup
-    g.send(json!({ "type": "serveCustomer", "customerId": 4 }))
-        .unwrap();
-    assert_eq!(g.view()["nextStep"], "summary");
-    assert_eq!(g.coins, 4 + 8);
-}
-
-#[test]
-fn view_is_pure_and_settle_does_not_book() {
+    g.tap(2).unwrap(); // 18 - 4 + 4 = 16... jug_left 2
+    let coins = g.coins;
+    assert_eq!(coins, 16);
+    // Buying a 20-coin helper is not possible; press for 10 leaves 6 + 2*2 >= 4.
+    g.buy("press").unwrap();
+    // Now drive coins to exactly the press price for level 2 with an empty jug.
     let mut g = Game::new();
-    g.send(json!({ "type": "buyStock", "lemons": 3, "sugar": 1 }))
-        .unwrap();
-    g.send(json!({ "type": "makeJug" })).unwrap();
-    g.wait(10_000);
-    let before = g.state.clone();
-    let mut state = g.state.clone();
-    let mut ctx = RuleCtx::new(g.now, None, g.coins);
-    g.rules.settle(&mut state, &mut ctx).unwrap();
-    let (coins, ledger, _) = ctx.into_parts();
-    assert_eq!(coins, g.coins);
-    assert!(ledger.is_empty());
-    assert_eq!(g.state, before);
+    g.state["jugLeft"] = json!(0);
+    g.coins = 10;
+    g.ledger = 10;
+    assert_eq!(g.buy("press").unwrap_err(), "would_get_stuck");
+    assert_eq!(g.coins, 10);
 }
 
-/// Thousands of random moves never break the ledger, never go negative and
-/// never leave the child stuck: a good round must always be possible after.
 #[test]
-fn random_play_never_gets_stuck() {
-    for seed in 0..200u64 {
+fn max_level_and_unknown_upgrades_are_refused() {
+    let mut g = Game::new();
+    g.coins = 1000;
+    g.ledger = 1000;
+    g.buy("tree").unwrap();
+    assert_eq!(g.view()["jugCost"], 1);
+    assert_eq!(g.buy("tree").unwrap_err(), "max_level");
+    assert_eq!(g.buy("rocket").unwrap_err(), "invalid_command");
+    assert_eq!(
+        g.send(json!({ "type": "buyStock", "lemons": 1, "sugar": 0 }))
+            .unwrap_err(),
+        "invalid_command"
+    );
+}
+
+#[test]
+fn helpers_keep_selling_while_away_up_to_the_cap() {
+    let mut g = Game::new();
+    g.coins = 1000;
+    g.ledger = 1000;
+    g.buy("helper").unwrap(); // 0.5 cup/s
+    assert_eq!(g.view()["perMinute"], 30);
+    g.wait(10_000);
+    // The view shows 5 sold cups without saving anything.
+    let before = g.coins;
+    assert_eq!(g.view()["coins"], before + 10 - 8);
+    assert_eq!(g.coins, before);
+    g.tap(1).unwrap();
+    assert_eq!(g.last_event("HelpersSold")["cups"], 5);
+    assert_eq!(g.typed().stats.cups_by_helpers, 5);
+
+    // Collecting books the helpers without a tap.
+    g.wait(4000);
+    g.send(json!({ "type": "collect" })).unwrap();
+    assert_eq!(g.typed().stats.cups_by_helpers, 7);
+
+    // Away for a day: only two hours count.
+    let before = g.coins;
+    g.wait(24 * 3600 * 1000);
+    g.tap(1).unwrap();
+    let away = g.last_event("AwayEarnings");
+    assert_eq!(away["cups"], 3600);
+    assert_eq!(away["capped"], true);
+    // 3601 cups at 1 coin profit each, give or take one jug.
+    assert!((g.coins - before - 3601).abs() <= 4, "{}", g.coins - before);
+}
+
+#[test]
+fn helper_fractions_carry_over() {
+    let mut g = Game::new();
+    g.coins = 100;
+    g.ledger = 100;
+    g.buy("helper").unwrap();
+    for _ in 0..3 {
+        g.wait(1000);
+        g.tap(1).unwrap();
+    }
+    // 1.5 cups made: 1 sold, half a cup carried.
+    let s = g.typed();
+    assert_eq!(s.stats.cups_by_helpers, 1);
+    assert_eq!(s.carry_milli, 500);
+}
+
+#[test]
+fn converting_a_v1_game_pays_back_stock_and_keeps_the_jug() {
+    let rules = Lemonade::new();
+    let now = Utc.with_ymd_and_hms(2026, 11, 5, 10, 0, 0).unwrap();
+    let old = json!({
+        "schema": 1,
+        "stock": { "lemon": 2, "sugar": 1 },
+        "jug": { "cups": 1, "lots": [], "making": { "startedAt": now, "doneAt": now, "cost": 4 } },
+        "round": null, "roundsPlayed": 3, "lastRound": null, "settledTo": null
+    });
+    let mut state = old.clone();
+    let mut ctx = RuleCtx::new(now, None, 7);
+    rules.upgrade(1, &mut state, &mut ctx).unwrap();
+    let (coins, ledger, _) = ctx.into_parts();
+    assert_eq!(coins, 10);
+    assert_eq!(ledger[0].reference, "convert:v1:stock");
+    let s: State = serde_json::from_value(state).unwrap();
+    assert_eq!(s.jug_left, 5);
+    assert!(
+        rules
+            .upgrade(3, &mut old.clone(), &mut RuleCtx::new(now, None, 0))
+            .is_err()
+    );
+}
+
+#[test]
+fn random_play_never_breaks_the_economy() {
+    for seed in 0..40 {
         let mut rng = StdRng::seed_from_u64(seed);
         let mut g = Game::new();
-        for _ in 0..60 {
-            let cmd = match rng.gen_range(0..8) {
-                0 => {
-                    json!({ "type": "buyStock", "lemons": rng.gen_range(0..8), "sugar": rng.gen_range(0..3) })
-                }
-                1 => json!({ "type": "makeJug" }),
-                2 => json!({ "type": "openStand" }),
-                3 | 4 => json!({ "type": "serveCustomer", "customerId": rng.gen_range(1..=4) }),
-                5 => json!({ "type": "closeRound" }),
-                6 => json!({ "type": "seenRound", "roundId": rng.gen_range(1..4) }),
-                _ => {
-                    g.wait(rng.gen_range(0..4000));
-                    continue;
-                }
+        for _ in 0..300 {
+            g.wait(rng.gen_range(0..20_000));
+            let r = rng.gen_range(0..10);
+            let _ = if r < 7 {
+                g.tap(rng.gen_range(1..30))
+            } else {
+                let id = ["press", "helper", "tree"][rng.gen_range(0..3)];
+                g.buy(id)
             };
-            let _ = g.send(cmd);
             let s = g.typed();
-            assert!(s.jug.cups >= 0 && s.jug.cups <= 4, "seed {seed}");
-            assert_eq!(
-                s.jug.cups,
-                s.jug.lots.units(),
-                "seed {seed}: cost lots follow cups"
+            assert!(g.coins >= 0);
+            assert!(s.jug_left >= 0 && s.jug_left < 4);
+            // Never stuck: the next cup can always be made.
+            let v = g.view();
+            assert!(
+                g.coins + s.jug_left * 2 >= v["jugCost"].as_i64().unwrap(),
+                "seed {seed} stuck"
             );
         }
-        let before = g.coins;
-        g.wait(5000);
-        g.play_round();
-        assert!(
-            g.coins > before || g.typed().last_round.unwrap().cups_sold > 0,
-            "seed {seed}: stuck"
-        );
     }
 }

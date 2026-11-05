@@ -3,14 +3,15 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import type { ScreenRect } from '~/components/game/WorldHotspot.vue'
 import type { GameState } from '~/game/client'
 import type { Stage } from '~/game/stage'
-import type { LemonadeCommand, LemonadeView } from '~/game/lemonade/types'
+import type { LemonadeView, UpgradeId } from '~/game/lemonade/types'
 import { useLemonade } from '~/game/lemonade/useLemonade'
-import { LEMONADE_ART, LEMONADE_BACKGROUND, LEMONADE_BOUNDS, LEMONADE_PROJECTION, LemonadeWorld } from '~/game/lemonade/world'
+import { LEMONADE_ART, LEMONADE_BACKGROUND, LEMONADE_BOUNDS, LEMONADE_PROJECTION, LemonadeWorld, type SpotId } from '~/game/lemonade/world'
 import { t } from '~/locales/nl'
 import { useHouseholdStore } from '~/stores/household'
 
-// Every action happens in the world: tap the crate, the sugar pot, the press,
-// the board or a customer. The DOM buttons lie over the drawn objects.
+// A clicker: tap the press to sell lemonade. Improvements are bought by
+// tapping their object (arrow on the press, the help-wanted sign, the sprout);
+// the till shows what you earned. No buttons under the world (D12, D13).
 
 const route = useRoute()
 const router = useRouter()
@@ -25,14 +26,13 @@ function show(g: GameState<LemonadeView>) {
     pending = g
     return
   }
-  world.value.play(g.events)
   world.value.update(g.view)
 }
 
-const { game, view, loadError, busy, notice, now, refresh, send } = useLemonade(gameId, show)
+const { game, view, coins, loadError, busy, notice, away, refresh, tap, buy } = useLemonade(gameId, show)
 
 /** Tap targets in screen pixels, moved after every drawn frame. */
-const spots = shallowRef<{ id: string; rect: ScreenRect }[]>([])
+const spots = shallowRef<{ id: SpotId; rect: ScreenRect }[]>([])
 
 function placeSpots(stage: Stage) {
   const w = world.value
@@ -61,79 +61,78 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => stopRender?.())
 
-const coins = computed(() => game.value?.coins ?? 0)
-const making = computed(() => view.value?.jug.making ?? null)
-const makeProgress = computed(() => {
-  const m = making.value
-  if (!m) return 0
-  const start = Date.parse(m.startedAt)
-  const end = Date.parse(m.doneAt)
-  return Math.min(1, Math.max(0, (now.value - start) / (end - start)))
-})
-const waiting = computed(() => view.value?.round?.customers.filter((c) => c.state === 'waiting') ?? [])
-const goal = computed(() => {
-  const v = view.value
-  if (!v) return ''
-  if (v.nextStep === 'wait') return making.value && v.jug.cups === 0 ? t.lemonade.goal.waitJug : t.lemonade.goal.waitCustomer
-  return t.lemonade.goal[v.nextStep]
-})
+const UPGRADE_OF: Partial<Record<SpotId, UpgradeId>> = { 'press-up': 'press', helper: 'helper', tree: 'tree' }
+const PICTURE: Record<UpgradeId, string> = {
+  press: LEMONADE_ART.press.url,
+  helper: LEMONADE_ART.helpSign.url,
+  tree: LEMONADE_ART.lemonTree.url,
+}
 
-/** Which object to point at: the next step the server reports. */
-const hintId = computed(() => {
-  const v = view.value
-  if (!v || busy.value) return null
-  switch (v.nextStep) {
-    case 'buy':
-      return v.stock.lemons < v.recipe.lemons ? 'lemons' : 'sugar'
-    case 'make':
-      return 'press'
-    case 'open':
-      return 'board'
-    case 'serve':
-      return waiting.value[0] ? `customer:${waiting.value[0].id}` : null
-    default:
-      return null
-  }
-})
+function upgradeOf(id: UpgradeId) {
+  return view.value?.upgrades.find((u) => u.id === id) ?? null
+}
+/** Affordable now, so the object gets a golden arrow. */
+function canBuy(id: UpgradeId): boolean {
+  const u = upgradeOf(id)
+  return !!u && u.nextPrice !== null && coins.value >= u.nextPrice
+}
 
-const shaking = ref<string | null>(null)
+const hintId = computed<SpotId | null>(() => {
+  const v = view.value
+  if (!v) return null
+  if (v.nextStep === 'tap') return v.stats.cupsSold < v.cupsPerJug ? 'press' : null
+  const id = v.nextStep.slice(8) as UpgradeId
+  return id === 'press' ? 'press-up' : id
+})
+const goal = computed(() => (view.value?.nextStep.startsWith('upgrade') ? t.lemonade.goal.upgrade : t.lemonade.goal.tap))
+
+/** Floating "+2" texts over the press; purely decoration. */
+const floats = ref<{ id: number; text: string; x: number }[]>([])
+let floatId = 0
+function float(text: string) {
+  const id = ++floatId
+  floats.value = [...floats.value.slice(-6), { id, text, x: Math.round(Math.random() * 40 - 20) }]
+  setTimeout(() => (floats.value = floats.value.filter((f) => f.id !== id)), 900)
+}
+
+const shaking = ref<SpotId | null>(null)
 let shakeTimer: ReturnType<typeof setTimeout> | undefined
-
-function commandFor(id: string, v: LemonadeView): LemonadeCommand | null {
-  if (id === 'lemons') return { type: 'buyStock', lemons: 1, sugar: 0 }
-  if (id === 'sugar') return { type: 'buyStock', lemons: 0, sugar: 1 }
-  if (id === 'press') return { type: 'makeJug' }
-  if (id === 'board') return v.round ? { type: 'closeRound' } : { type: 'openStand' }
-  if (id.startsWith('customer:')) return { type: 'serveCustomer', customerId: Number(id.slice(9)) }
-  return null
+function shake(id: SpotId) {
+  shaking.value = id
+  world.value?.shake(id)
+  clearTimeout(shakeTimer)
+  shakeTimer = setTimeout(() => (shaking.value = null), 450)
 }
 
-async function tap(id: string) {
+const card = ref<UpgradeId | null>(null)
+const statsOpen = ref(false)
+
+function onTap(id: SpotId) {
   const v = view.value
-  const cmd = v && commandFor(id, v)
-  if (!cmd) return
-  const ok = await send(cmd)
-  if (!ok && notice.value) {
-    // Refused: the object says "no" and the reason is shown.
-    shaking.value = id
-    world.value?.shake(id)
-    clearTimeout(shakeTimer)
-    shakeTimer = setTimeout(() => (shaking.value = null), 450)
+  if (!v) return
+  if (id === 'press') {
+    tap()
+    world.value?.tapped()
+    float(t.lemonade.earned(v.cupsPerTap * v.cupPrice))
+  } else if (id === 'till') statsOpen.value = true
+  else if (UPGRADE_OF[id]) card.value = UPGRADE_OF[id]!
+}
+
+async function buyCard() {
+  const id = card.value
+  if (!id) return
+  if (await buy(id)) card.value = null
+  else {
+    card.value = null
+    shake(id === 'press' ? 'press-up' : id)
   }
 }
 
-function label(id: string, v: LemonadeView): string {
-  if (id === 'lemons') return `${t.lemonade.tap.lemon(v.prices.lemon)}. ${t.lemonade.have.lemons(v.stock.lemons)}`
-  if (id === 'sugar') return `${t.lemonade.tap.sugar(v.prices.sugar)}. ${t.lemonade.have.sugar(v.stock.sugar)}`
-  if (id === 'press') return making.value ? t.lemonade.making : t.lemonade.tap.press
-  if (id === 'board') return v.round ? t.lemonade.tap.close : t.lemonade.tap.open
-  if (id === 'jug') return t.lemonade.jug(v.jug.cups)
-  return t.lemonade.tap.serve(Number(id.slice(9)))
-}
-
-function testId(id: string): string {
-  if (id.startsWith('customer:')) return id === `customer:${waiting.value[0]?.id}` ? 'serve' : `customer-${id.slice(9)}`
-  return `spot-${id}`
+function label(id: SpotId, v: LemonadeView): string {
+  if (id === 'press') return t.lemonade.tap.press(v.cupsPerTap, v.cupPrice)
+  if (id === 'till') return t.lemonade.tap.till
+  if (id === 'jug') return t.lemonade.jug(v.jugLeft)
+  return t.lemonade.tap.upgrade(t.upgrades[UPGRADE_OF[id]!].name)
 }
 </script>
 
@@ -141,9 +140,12 @@ function testId(id: string): string {
   <div class="flex h-dvh flex-col">
     <AppHeader :title="household.selected ? t.lemonade.title(household.selected.nickname) : t.lemonade.name" back="/start">
       <template #right>
-        <span class="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 font-extrabold" data-testid="coins">
-          <span class="size-5 rounded-full bg-gold ring-2 ring-[#d99a1e]" aria-hidden="true" />
-          {{ t.lemonade.coins(coins) }}
+        <span class="flex flex-col items-end leading-tight">
+          <span class="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 font-extrabold" data-testid="coins">
+            <span class="size-5 rounded-full bg-gold ring-2 ring-[#d99a1e]" aria-hidden="true" />
+            {{ t.lemonade.coins(coins) }}
+          </span>
+          <span v-if="view && view.perMinute > 0" class="px-3 text-sm font-bold text-gold" data-testid="per-minute">{{ t.lemonade.perMinute(view.perMinute) }}</span>
         </span>
       </template>
     </AppHeader>
@@ -157,51 +159,40 @@ function testId(id: string): string {
         <WorldHotspot
           v-for="s in spots"
           :key="s.id"
-          :class="{ 'pointer-events-auto': s.id !== 'jug' }"
+          :class="{ 'pointer-events-auto': s.id !== 'jug', 'z-10': s.id === 'press-up' }"
           :rect="s.rect"
           :label="label(s.id, view)"
           :hint="hintId === s.id"
           :shaking="shaking === s.id"
-          :disabled="busy || view.nextStep === 'summary'"
           :passive="s.id === 'jug'"
-          :data-testid="testId(s.id)"
-          @tap="tap(s.id)"
+          :data-testid="`spot-${s.id}`"
+          @tap="onTap(s.id)"
         >
           <template #badge>
-            <!-- Counts on the objects themselves: lemons, sugar, cups. -->
+            <!-- Upgrade arrow with price: gold when you can afford it. -->
             <span
-              v-if="(s.id === 'lemons' && (view.stock.lemons > 0 || hintId === s.id)) || (s.id === 'sugar' && (view.stock.sugar > 0 || hintId === s.id))"
-              class="badge absolute -top-3 -right-3"
-              :data-testid="`${s.id}-count`"
+              v-if="UPGRADE_OF[s.id] && upgradeOf(UPGRADE_OF[s.id]!)?.nextPrice != null"
+              class="badge absolute left-1/2 -translate-x-1/2"
+              :class="[s.id === 'press-up' ? 'top-1/2 -translate-y-1/2' : '-top-4', canBuy(UPGRADE_OF[s.id]!) ? 'bg-gold!' : 'opacity-80']"
+              :data-testid="`up-${UPGRADE_OF[s.id]}`"
               aria-hidden="true"
             >
-              <img :src="s.id === 'lemons' ? LEMONADE_ART.lemon.url : LEMONADE_ART.sugar.url" alt="" class="h-4 w-auto" />
-              {{ s.id === 'lemons' ? view.stock.lemons : view.stock.sugar }}
+              <svg width="14" height="16" viewBox="0 0 14 16"><path d="M7 1 L13 8 L9.5 8 L9.5 15 L4.5 15 L4.5 8 L1 8 Z" fill="#167d8d" /></svg>
+              {{ upgradeOf(UPGRADE_OF[s.id]!)?.nextPrice }}
             </span>
-            <span
-              v-if="(s.id === 'lemons' || s.id === 'sugar') && hintId === s.id"
-              class="badge absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gold!"
-              aria-hidden="true"
-            >
-              <span class="size-3.5 rounded-full bg-[#fff6c2] ring-2 ring-[#d99a1e]" />
-              {{ s.id === 'lemons' ? view.prices.lemon : view.prices.sugar }}
-            </span>
-            <span v-if="s.id === 'jug' && view.jug.cups > 0" class="badge absolute -top-3 -right-4" data-testid="jug-count" role="status" :aria-label="t.lemonade.jug(view.jug.cups)">
+            <span v-if="s.id === 'jug' && view.jugLeft > 0" class="badge absolute -top-3 -right-4" data-testid="jug-count" role="status" :aria-label="t.lemonade.jug(view.jugLeft)">
               <img :src="LEMONADE_ART.cup.url" alt="" class="h-5 w-auto" />
-              {{ view.jug.cups }}
+              {{ view.jugLeft }}
             </span>
-            <span v-if="s.id === 'press' && making" class="absolute -top-4 left-1/2 w-20 -translate-x-1/2" data-testid="making">
+            <template v-if="s.id === 'press'">
               <span
-                class="block h-3 overflow-hidden rounded-full bg-ivory ring-2 ring-[#5b3a24]"
-                role="progressbar"
-                :aria-label="t.lemonade.making"
-                :aria-valuenow="Math.round(makeProgress * 100)"
-                aria-valuemin="0"
-                aria-valuemax="100"
-              >
-                <span class="block h-full rounded-full bg-leaf" :style="{ width: `${makeProgress * 100}%` }" />
-              </span>
-            </span>
+                v-for="f in floats"
+                :key="f.id"
+                class="float pointer-events-none absolute left-1/2 top-0 text-2xl font-extrabold text-gold"
+                :style="{ marginLeft: `${f.x}px` }"
+                aria-hidden="true"
+              >{{ f.text }}</span>
+            </template>
           </template>
         </WorldHotspot>
       </div>
@@ -212,8 +203,6 @@ function testId(id: string): string {
         aria-live="polite"
       >
         <p class="font-extrabold">{{ goal }}</p>
-        <p v-if="view.nextStep === 'buy'" class="text-sm text-ink-soft">{{ t.lemonade.recipe(view.recipe.lemons, view.recipe.sugar, view.recipe.cups) }}</p>
-        <p v-if="view.round" class="text-sm text-ink-soft">{{ t.lemonade.customers(view.round.served, view.round.demand) }}</p>
       </div>
       <p
         v-if="notice"
@@ -223,7 +212,31 @@ function testId(id: string): string {
         {{ notice }}
       </p>
 
-      <RoundSummary v-if="view.nextStep === 'summary' && view.lastRound" :summary="view.lastRound" :busy="busy" @next="send({ type: 'seenRound', roundId: view.lastRound.roundId })" />
+      <UpgradeCard
+        v-if="card && upgradeOf(card)"
+        :upgrade="upgradeOf(card)!"
+        :coins="coins"
+        :picture="PICTURE[card]"
+        :busy="busy"
+        @buy="buyCard"
+        @close="card = null"
+      />
+      <StatsSheet v-if="statsOpen" :view="view" @close="statsOpen = false" />
+      <UiDialog v-if="away" :open="true" :title="t.away.title" @close="away = null">
+        <div data-testid="away">
+          <p class="text-lg">{{ t.away.sold(away.cups) }}</p>
+          <p class="text-lg font-extrabold">{{ t.away.earned(away.revenue - away.materials) }}</p>
+          <p v-if="away.capped" class="mt-2 text-ink-soft">{{ t.away.capped }}</p>
+        </div>
+        <button
+          type="button"
+          class="mt-5 min-h-14 w-full rounded-full bg-teal px-5 text-lg font-extrabold text-white shadow-sm hover:bg-teal-dark"
+          autofocus
+          @click="away = null"
+        >
+          {{ t.away.ok }}
+        </button>
+      </UiDialog>
     </main>
   </div>
 </template>
@@ -242,5 +255,20 @@ function testId(id: string): string {
   color: var(--color-ink);
   box-shadow: 0 0 0 2px #5b3a24;
   white-space: nowrap;
+}
+.float {
+  transform: translateX(-50%);
+  text-shadow: 0 2px 0 #5b3a24;
+  animation: rise 0.9s ease-out forwards;
+}
+@keyframes rise {
+  from {
+    opacity: 1;
+    translate: 0 0;
+  }
+  to {
+    opacity: 0;
+    translate: 0 -60px;
+  }
 }
 </style>

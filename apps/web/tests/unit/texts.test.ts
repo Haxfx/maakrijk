@@ -14,10 +14,7 @@ function strings(obj: object, prefix = ''): [string, string][] {
 }
 
 // Refusal codes from docs/build/contracts/0.2-game-core.md §5.
-const CONTRACT_REFUSALS = [
-  'not_enough_coins', 'storage_full', 'would_get_stuck', 'not_enough_stock', 'jug_not_empty', 'jug_busy',
-  'round_open', 'no_round', 'nothing_to_sell', 'customer_not_waiting', 'no_cups', 'invalid_command',
-]
+const CONTRACT_REFUSALS = ['not_enough_coins', 'would_get_stuck', 'max_level', 'too_fast', 'invalid_command']
 
 describe('texts', () => {
   it('has no empty strings', () => {

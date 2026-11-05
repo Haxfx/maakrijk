@@ -1,51 +1,71 @@
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
-import { type GameState, clockOffset, loadGame, sendCommand } from '~/game/client'
+import { type GameState, loadGame, sendCommand } from '~/game/client'
 import { errorText } from '~/locales/nl'
 import { ApiError } from '~/utils/api'
-import type { LemonadeCommand, LemonadeView } from './types'
+import type { AwayData, LemonadeCommand, LemonadeView, UpgradeId } from './types'
+
+/** Taps are collected this long and sent as one command. */
+const TAP_BATCH_MS = 350
+/** The server takes at most this many taps per command. */
+const MAX_TAPS = 100
+/** While helpers work: read the stand this often (nothing is written)… */
+const HELPER_POLL_MS = 3000
+/** …and book their sales this often, so the away cap never hits a watching child. */
+const COLLECT_MS = 60_000
 
 /**
- * Lemonade game state for one page. Holds the latest server answer, sends
- * commands, and asks the server again when something is due (jug ready,
- * next customer), so the screen follows server time without guessing.
+ * Coins after `taps` more taps, the way the server will count them: every cup
+ * earns the cup price, every new jug costs its ingredients. Only for display
+ * until the server answers.
+ */
+export function coinsAfterTaps(v: LemonadeView, coins: number, taps: number): number {
+  const cups = taps * v.cupsPerTap
+  const newJugs = cups > v.jugLeft ? Math.ceil((cups - v.jugLeft) / v.cupsPerJug) : 0
+  return coins + cups * v.cupPrice - newJugs * v.jugCost
+}
+
+/**
+ * Lemonade clicker state for one page. Taps count locally at once and go to
+ * the server in batches; the server decides what they are worth. Commands run
+ * one after another, never in parallel.
  */
 export function useLemonade(gameId: string, onAnswer: (g: GameState<LemonadeView>) => void) {
   const game = shallowRef<GameState<LemonadeView> | null>(null)
   const loadError = ref<string | null>(null)
-  const busy = ref(false)
   const notice = ref<string | null>(null)
-  /** Server time estimate, ticking for progress bars. */
-  const now = ref(Date.now())
-  let offset = 0
-  let dueTimer: ReturnType<typeof setTimeout> | undefined
-  let tickTimer: ReturnType<typeof setInterval> | undefined
+  /** Helper sales while the child was away, shown once on arrival. */
+  const away = ref<AwayData | null>(null)
+  const inFlight = ref(0)
+  /** Taps not yet answered by the server (waiting or on their way). */
+  const pendingTaps = ref(0)
+  let sentTaps = 0
+  let chain: Promise<unknown> = Promise.resolve()
+  let batchTimer: ReturnType<typeof setTimeout> | undefined
   let noticeTimer: ReturnType<typeof setTimeout> | undefined
+  let pollTimer: ReturnType<typeof setInterval> | undefined
+  let lastCommandAt = Date.now()
+  let first = true
   let stopped = false
 
   const view = computed(() => game.value?.view ?? null)
+  const busy = computed(() => inFlight.value > 0)
+  /** Coins on screen: the server's, plus taps it has not answered yet. */
+  const coins = computed(() => {
+    const g = game.value
+    if (!g) return 0
+    return coinsAfterTaps(g.view, g.coins, pendingTaps.value)
+  })
 
   function accept(g: GameState<LemonadeView>) {
     // Ignore an older answer that arrives late.
     if (game.value && g.revision < game.value.revision) return
-    offset = clockOffset(g.serverNow)
+    if (first) {
+      first = false
+      const e = g.events.find((x) => x.type === 'AwayEarnings')
+      if (e) away.value = e.data as AwayData
+    }
     game.value = g
     onAnswer(g)
-    scheduleDue(g.view)
-  }
-
-  function serverNow() {
-    return Date.now() + offset
-  }
-
-  /** Ask the server again just after the next moment something changes. */
-  function scheduleDue(v: LemonadeView) {
-    clearTimeout(dueTimer)
-    const moments: number[] = []
-    if (v.jug.making) moments.push(Date.parse(v.jug.making.doneAt))
-    for (const c of v.round?.customers ?? []) if (c.state === 'coming') moments.push(Date.parse(c.arrivesAt))
-    const next = Math.min(...moments.filter((m) => m > serverNow() - 60_000))
-    if (!Number.isFinite(next) || stopped) return
-    dueTimer = setTimeout(() => void refresh(), Math.max(50, next - serverNow() + 80))
   }
 
   async function refresh() {
@@ -63,39 +83,79 @@ export function useLemonade(gameId: string, onAnswer: (g: GameState<LemonadeView
     noticeTimer = setTimeout(() => (notice.value = null), 4000)
   }
 
-  /** Send one command. Resolves true when the server accepted it, false when
-   *  it was refused (the reason is shown) or skipped because one is in flight. */
-  async function send(cmd: LemonadeCommand): Promise<boolean> {
-    if (busy.value) return false
-    busy.value = true
-    notice.value = null
+  /** Run commands one at a time, in order. */
+  function enqueue<T>(job: () => Promise<T>): Promise<T> {
+    const next = chain.then(job, job)
+    chain = next.catch(() => undefined)
+    return next
+  }
+
+  async function run(cmd: LemonadeCommand, quiet = false): Promise<boolean> {
+    inFlight.value++
+    lastCommandAt = Date.now()
     try {
       accept(await sendCommand<LemonadeView>(gameId, cmd))
       return true
     } catch (e) {
-      say(e instanceof ApiError ? e.code : 'unknown')
-      // Time may have moved on; show the server's current state.
+      const code = e instanceof ApiError ? e.code : 'unknown'
+      if (!quiet) say(code)
       await refresh()
       return false
     } finally {
-      busy.value = false
+      inFlight.value--
     }
+  }
+
+  function flushTaps() {
+    clearTimeout(batchTimer)
+    batchTimer = undefined
+    const count = Math.min(MAX_TAPS, pendingTaps.value - sentTaps)
+    if (count <= 0) return
+    sentTaps += count
+    void enqueue(async () => {
+      // A fast child never sees an error for tapping too fast.
+      await run({ type: 'tap', count }, true)
+      sentTaps -= count
+      pendingTaps.value -= count
+    })
+    if (pendingTaps.value - sentTaps > 0) flushTaps()
+  }
+
+  /** One tap on the press. Counted at once; sent with the next batch. */
+  function tap() {
+    if (!game.value) return
+    pendingTaps.value++
+    batchTimer ??= setTimeout(flushTaps, TAP_BATCH_MS)
+  }
+
+  /** Buy the next level of an upgrade. Waiting taps go first. */
+  function buy(upgrade: UpgradeId): Promise<boolean> {
+    flushTaps()
+    return enqueue(() => run({ type: 'buyUpgrade', upgrade }))
+  }
+
+  function poll() {
+    const v = view.value
+    if (stopped || document.hidden || !v || v.helperMilliCupsPerSecond === 0 || busy.value) return
+    if (Date.now() - lastCommandAt > COLLECT_MS) void enqueue(() => run({ type: 'collect' }, true))
+    else void refresh()
   }
 
   function onVisible() {
     if (!document.hidden) void refresh()
+    else flushTaps()
   }
 
   document.addEventListener('visibilitychange', onVisible)
-  tickTimer = setInterval(() => (now.value = serverNow()), 200)
+  pollTimer = setInterval(poll, HELPER_POLL_MS)
 
   onBeforeUnmount(() => {
     stopped = true
-    clearTimeout(dueTimer)
+    flushTaps()
     clearTimeout(noticeTimer)
-    clearInterval(tickTimer)
+    clearInterval(pollTimer)
     document.removeEventListener('visibilitychange', onVisible)
   })
 
-  return { game, view, loadError, busy, notice, now, refresh, send }
+  return { game, view, coins, loadError, busy, notice, away, pendingTaps, refresh, tap, buy }
 }

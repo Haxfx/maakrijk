@@ -8,7 +8,10 @@ export { possessive }
 export const t = {
   ...common,
   lemonade: lemonade.lemonade,
-  summary: lemonade.summary,
+  upgrades: lemonade.upgrades,
+  upgrade: lemonade.upgrade,
+  stats: lemonade.stats,
+  away: lemonade.away,
   errors: { ...common.errors, ...lemonade.errors },
 } as const
 
