@@ -22,7 +22,11 @@ pub struct AppState {
 }
 
 pub fn router(state: AppState) -> Router {
-    let api = Router::new().route("/health", get(http::health::health));
+    let api = Router::new()
+        .route("/health", get(http::health::health))
+        .route("/version", get(http::version::version))
+        // Without this, unknown /api paths would fall through to the SPA page.
+        .fallback(|| async { http::error::ApiError::NotFound });
 
     let mut app = Router::new().nest("/api", api);
 
