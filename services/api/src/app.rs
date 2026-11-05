@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
-use axum::routing::get;
+use axum::routing::{get, patch, post};
 use sqlx::PgPool;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
@@ -25,6 +25,15 @@ pub fn router(state: AppState) -> Router {
     let api = Router::new()
         .route("/health", get(http::health::health))
         .route("/version", get(http::version::version))
+        .route("/session", post(http::session::ensure_session))
+        .route(
+            "/profiles",
+            get(http::profiles::list).post(http::profiles::create),
+        )
+        .route(
+            "/profiles/{id}",
+            patch(http::profiles::update).delete(http::profiles::delete),
+        )
         // Without this, unknown /api paths would fall through to the SPA page.
         .fallback(|| async { http::error::ApiError::NotFound });
 

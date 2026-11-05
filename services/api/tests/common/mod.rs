@@ -43,7 +43,6 @@ pub fn test_config(url: &str) -> Config {
         bind_addr: "127.0.0.1:0".parse().unwrap(),
         web_dir: None,
         cookie_secure: false,
-        allowed_origins: vec!["capacitor://localhost".into()],
     }
 }
 

@@ -10,8 +10,6 @@ pub struct Config {
     /// Folder with a static Nuxt build. `None` when only the API runs.
     pub web_dir: Option<PathBuf>,
     pub cookie_secure: bool,
-    /// Extra origins (besides the API's own) that may call the API with a bearer token.
-    pub allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -45,21 +43,11 @@ impl Config {
                 });
             }
         };
-        let allowed_origins = get("ALLOWED_ORIGINS")
-            .map(|v| {
-                v.split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect()
-            })
-            .unwrap_or_default();
-
         Ok(Self {
             database_url,
             bind_addr,
             web_dir,
             cookie_secure,
-            allowed_origins,
         })
     }
 
