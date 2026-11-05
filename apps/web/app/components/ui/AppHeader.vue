@@ -19,7 +19,7 @@ defineProps<{ title: string; back?: string; avatar?: string }>()
         </svg>
       </NuxtLink>
       <AvatarIcon v-else-if="avatar" :id="avatar" :size="44" />
-      <h1 class="min-w-0 flex-1 truncate text-xl font-extrabold sm:text-2xl">{{ title }}</h1>
+      <h1 class="min-w-0 flex-1 text-lg leading-tight font-extrabold break-words sm:text-2xl">{{ title }}</h1>
       <slot name="right" />
     </div>
   </header>

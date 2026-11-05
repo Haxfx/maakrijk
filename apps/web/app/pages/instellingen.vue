@@ -11,7 +11,10 @@ const rows = [
 ] as const
 
 function done() {
-  if (window.history.length > 1) router.back()
+  // Only go back when the previous page is part of this app; otherwise
+  // (opened directly) go to the start, never out of the app (RC1 F2).
+  // vue-router keeps the previous in-app path in history.state.back.
+  if ((window.history.state as { back?: string | null } | null)?.back) router.back()
   else void router.push('/')
 }
 </script>
@@ -34,7 +37,7 @@ function done() {
                 @change="settings.set(row.key, ($event.target as HTMLInputElement).checked)"
               />
               <span
-                class="block h-8 w-14 rounded-full bg-sand transition-colors peer-checked:bg-teal peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-gold"
+                class="block h-8 w-14 rounded-full bg-[#a8987a] transition-colors peer-checked:bg-teal peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-gold"
                 aria-hidden="true"
               />
               <span

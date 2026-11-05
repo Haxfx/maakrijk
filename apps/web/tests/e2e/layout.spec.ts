@@ -27,10 +27,17 @@ async function checkLayout(page: Page) {
       const target = el.matches('[role=switch]') ? el.closest('label')!.getBoundingClientRect() : b
       if (Math.min(target.width, target.height) < 47.5) small.push(`${el.textContent?.trim() || el.getAttribute('aria-label')} ${Math.round(target.width)}x${Math.round(target.height)}`)
     }
-    return { overflow: document.documentElement.scrollWidth - window.innerWidth, small }
+    // Text that does not fit its button (RC1 F3/F4).
+    const clipped: string[] = []
+    for (const el of document.querySelectorAll<HTMLElement>('button, a')) {
+      if (el.getBoundingClientRect().width === 0) continue
+      if (el.scrollWidth > el.clientWidth + 1) clipped.push(`${el.textContent?.trim()} ${el.scrollWidth}>${el.clientWidth}`)
+    }
+    return { overflow: document.documentElement.scrollWidth - window.innerWidth, small, clipped }
   })
   expect(r.overflow, 'horizontal overflow').toBeLessThanOrEqual(0)
   expect(r.small, 'touch targets below 48 px').toEqual([])
+  expect(r.clipped, 'button text clipped').toEqual([])
 }
 
 for (const big of [false, true]) {
@@ -54,6 +61,10 @@ for (const big of [false, true]) {
           expect(box, 'submit button rendered').not.toBeNull()
           expect(box!.y + box!.height, 'submit button inside viewport').toBeLessThanOrEqual(vp.height)
           expect(box!.y, 'submit button inside viewport').toBeGreaterThanOrEqual(0)
+          // All eight pictures visible without scrolling the dialog (RC1 F5).
+          const last = await page.getByRole('radio').last().locator('..').boundingBox()
+          const actions = await page.getByTestId('profile-submit').locator('..').boundingBox()
+          expect(last!.y + last!.height, 'last picture above the action row').toBeLessThanOrEqual(actions!.y + 1)
           await shot(page, `new-player-${suffix}`)
         }
         await page.getByTestId('profile-submit').click()
