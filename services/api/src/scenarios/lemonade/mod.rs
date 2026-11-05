@@ -1,5 +1,5 @@
-//! Lemonade stand scenario: a clicker. Tap the press to sell cups, buy
-//! upgrades by tapping objects, helpers keep selling.
+//! Lemonade stand scenario: an idle clicker. The stand sells by itself,
+//! tapping the press helps, upgrades (bought by tapping objects) speed it up.
 
 pub mod manifest;
 pub mod rules;
@@ -20,10 +20,12 @@ pub struct Lemonade {
 
 impl Lemonade {
     pub fn new() -> Self {
-        let manifest = manifest::v2();
-        manifest
-            .validate()
-            .expect("lemonade manifest v2 is invalid");
+        Self::with_manifest(manifest::v3())
+    }
+
+    /// A stand with another definition (tests).
+    pub fn with_manifest(manifest: Manifest) -> Self {
+        manifest.validate().expect("lemonade manifest is invalid");
         Self { manifest }
     }
 }
@@ -83,10 +85,11 @@ impl Ruleset for Lemonade {
         Ok(())
     }
     fn upgrade(&self, from_version: i32, state: &mut Value, ctx: &mut RuleCtx) -> RuleResult<()> {
-        if from_version != 1 {
-            return Err(RuleError::new("bad_state"));
-        }
-        let s = rules::convert_v1(&self.manifest, state, ctx)?;
+        let s = match from_version {
+            1 => rules::convert_v1(&self.manifest, state, ctx)?,
+            2 => rules::convert_v2(state, ctx)?,
+            _ => return Err(RuleError::new("bad_state")),
+        };
         *state = store(&s)?;
         Ok(())
     }

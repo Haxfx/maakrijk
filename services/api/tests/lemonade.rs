@@ -57,16 +57,16 @@ async fn new_game(app: &Router, c: &Client, name: &str) -> (String, Value) {
 }
 
 #[tokio::test]
-async fn tapping_upgrading_and_helpers_over_http() {
+async fn selling_by_itself_tapping_and_upgrading_over_http() {
     let (app, db, clock) = common::game_app().await;
     let c = Client::browser(&app).await;
     let (gid, g) = new_game(&app, &c, "Limo").await;
     assert_eq!(g["coins"], 12);
-    assert_eq!(g["view"]["nextStep"], "tap");
+    assert_eq!(g["view"]["nextStep"], "wait");
+    assert_eq!(g["view"]["perMinute"], 15);
 
     let t = ok(&app, &c, &gid, json!({"type": "tap", "count": 4})).await;
     assert_eq!(t["coins"], 16);
-    assert_eq!(t["view"]["nextStep"], "upgrade:press");
     assert!(t["events"].to_string().contains("CupsSold"));
     ledger_ok(&db, &gid).await;
 
@@ -80,34 +80,21 @@ async fn tapping_upgrading_and_helpers_over_http() {
     assert_eq!(u["coins"], 6);
     assert_eq!(u["view"]["cupsPerTap"], 2);
 
-    // Earn enough for a helper, then let it work while nobody plays.
-    clock.advance(Duration::milliseconds(2000));
-    ok(&app, &c, &gid, json!({"type": "tap", "count": 10})).await; // 20 cups: 6 + 40 - 20
-    ok(
-        &app,
-        &c,
-        &gid,
-        json!({"type": "buyUpgrade", "upgrade": "helper"}),
-    )
-    .await;
-    let before = c
-        .call(&app, "GET", &format!("/api/games/{gid}"), None)
-        .await
-        .body;
-    assert_eq!(before["coins"], 6);
-    clock.advance(Duration::milliseconds(20_000));
-    // Reading shows the helper's 10 cups (+20, minus 3 jugs of 4) without writing anything.
+    // Nobody plays for 16 s: the stand sells 4 cups by itself (+8, one jug -4).
+    clock.advance(Duration::milliseconds(16_000));
     let seen = c
         .call(&app, "GET", &format!("/api/games/{gid}"), None)
         .await
         .body;
-    assert_eq!(seen["coins"], 14);
-    assert_eq!(seen["revision"], before["revision"]);
+    assert_eq!(seen["coins"], 10);
+    assert_eq!(seen["revision"], u["revision"], "reading writes nothing");
+    assert!(seen["events"].to_string().contains("HelpersSold"));
     ledger_ok(&db, &gid).await;
-    // The next command books them exactly once; its 2 cups come from the open jug.
+    // The next command books them exactly once; its 2 cups need a new jug.
     let next = ok(&app, &c, &gid, json!({"type": "tap", "count": 1})).await;
     assert!(next["events"].to_string().contains("HelpersSold"));
-    assert_eq!(next["coins"], 14 + 4);
+    assert_eq!(next["coins"], 10);
+    assert_eq!(next["view"]["stats"]["cupsByHelpers"], 4);
     ledger_ok(&db, &gid).await;
 }
 
@@ -191,6 +178,6 @@ async fn a_version_1_game_is_converted_on_its_next_command() {
     .fetch_one(&db)
     .await
     .unwrap();
-    assert_eq!(versions, (2, 2));
+    assert_eq!(versions, (3, 3));
     ledger_ok(&db, &gid).await;
 }

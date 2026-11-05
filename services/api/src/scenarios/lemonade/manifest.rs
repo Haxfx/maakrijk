@@ -1,14 +1,15 @@
-//! Lemonade stand definition v2: the clicker core (balance 2026-11-b,
-//! docs/03 §5–§8, decision D13). Immutable once stored: any change needs a
-//! new `DEFINITION_VERSION`. Version 1 (rounds with customers) stays stored
-//! for old games; they are converted on first use (see `rules::convert_v1`).
+//! Lemonade stand definition v3: an idle clicker (balance 2026-11-c,
+//! docs/03 §5–§8, decisions D13/D14). The stand sells by itself from the
+//! start; upgrades mainly make that faster. Immutable once stored: any change
+//! needs a new `DEFINITION_VERSION`. Older versions stay stored for old
+//! games; they are converted on first use (see `Lemonade::upgrade`).
 
 use serde::{Deserialize, Serialize};
 
 pub const SCENARIO_ID: &str = "lemonade";
-pub const DEFINITION_VERSION: i32 = 2;
+pub const DEFINITION_VERSION: i32 = 3;
 pub const RULESET_ID: &str = "lemonade";
-pub const RULESET_VERSION: i32 = 2;
+pub const RULESET_VERSION: i32 = 3;
 
 pub const LEMON: &str = "lemon";
 pub const SUGAR: &str = "sugar";
@@ -34,7 +35,9 @@ pub struct Manifest {
     /// Taps the server accepts: `per_second` refill, at most `burst` saved up.
     pub taps_per_second: i64,
     pub tap_burst: i64,
-    /// Helpers keep working while the child is away, but only this long.
+    /// The stand sells this many thousandths of a cup per second by itself.
+    pub auto_milli_cups_per_second: i64,
+    /// Selling by itself continues while the child is away, but only this long.
     pub away_cap_ms: i64,
     pub upgrades: Vec<Upgrade>,
 }
@@ -72,21 +75,25 @@ pub enum Effect {
     /// Every level adds a helper making this many thousandths of a cup per second.
     #[serde(rename_all = "camelCase")]
     HelperMilliCupsPerSecond { per_level: i64 },
+    /// Every level makes selling by itself this many thousandths faster
+    /// (advertising brings more customers).
+    #[serde(rename_all = "camelCase")]
+    AutoBoostPermille { per_level: i64 },
     /// From level 1 this ingredient costs nothing (an own lemon tree).
     #[serde(rename_all = "camelCase")]
     FreeIngredient { ingredient: String },
 }
 
-pub fn v2() -> Manifest {
+pub fn v3() -> Manifest {
     Manifest {
         scenario_id: SCENARIO_ID.into(),
         definition_version: DEFINITION_VERSION,
         schema_version: 2,
-        balance_version: "2026-11-b".into(),
+        balance_version: "2026-11-c".into(),
         ruleset_id: RULESET_ID.into(),
         ruleset_version: RULESET_VERSION,
         name_key: "scenario.lemonade.name".into(),
-        asset_pack_id: "lemonade-v2".into(),
+        asset_pack_id: "lemonade-v3".into(),
         capabilities: vec!["economy".into(), "upgrades".into(), "automation".into()],
         starting_coins: 12,
         ingredients: vec![
@@ -106,6 +113,8 @@ pub fn v2() -> Manifest {
         cup_price: 2,
         taps_per_second: 12,
         tap_burst: 24,
+        // One cup every 4 seconds without doing anything.
+        auto_milli_cups_per_second: 250,
         away_cap_ms: 2 * 60 * 60 * 1000,
         upgrades: vec![
             Upgrade {
@@ -116,7 +125,12 @@ pub fn v2() -> Manifest {
             Upgrade {
                 id: "helper".into(),
                 effect: Effect::HelperMilliCupsPerSecond { per_level: 500 },
-                prices: vec![20, 50, 120, 300, 700],
+                prices: vec![15, 40, 100, 250, 600],
+            },
+            Upgrade {
+                id: "advert".into(),
+                effect: Effect::AutoBoostPermille { per_level: 500 },
+                prices: vec![40, 120, 350],
             },
             Upgrade {
                 id: "tree".into(),
@@ -153,6 +167,10 @@ impl Manifest {
         positive("tapsPerSecond", self.taps_per_second)?;
         positive("tapBurst", self.tap_burst)?;
         positive("awayCapMs", self.away_cap_ms)?;
+        // Zero is allowed: a stand that only sells when tapped.
+        if self.auto_milli_cups_per_second < 0 {
+            return Err("autoMilliCupsPerSecond must not be negative".into());
+        }
         for i in &self.ingredients {
             positive(&format!("{}.price", i.id), i.price)?;
         }
@@ -185,7 +203,8 @@ impl Manifest {
                 Effect::CupsPerTap { per_level } => {
                     positive(&format!("{}.perLevel", u.id), *per_level)?
                 }
-                Effect::HelperMilliCupsPerSecond { per_level } => {
+                Effect::HelperMilliCupsPerSecond { per_level }
+                | Effect::AutoBoostPermille { per_level } => {
                     positive(&format!("{}.perLevel", u.id), *per_level)?
                 }
                 Effect::FreeIngredient { ingredient } => {
@@ -207,8 +226,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn v2_is_valid_and_matches_the_balance_doc() {
-        let m = v2();
+    fn v3_is_valid_and_matches_the_balance_doc() {
+        let m = v3();
         m.validate().unwrap();
         assert_eq!(m.recipe.cups * m.cup_price, 8);
         assert_eq!(m.upgrade("press").unwrap().prices[0], 10);
@@ -216,24 +235,24 @@ mod tests {
 
     #[test]
     fn invalid_definitions_are_rejected() {
-        let mut m = v2();
+        let mut m = v3();
         m.recipe.inputs.push(("mint".into(), 1));
         assert!(m.validate().unwrap_err().contains("unknown ingredient"));
 
-        let mut m = v2();
+        let mut m = v3();
         m.starting_coins = 3;
         assert!(m.validate().is_err());
 
-        let mut m = v2();
+        let mut m = v3();
         m.cup_price = 1;
         assert!(m.validate().is_err());
 
-        let mut m = v2();
+        let mut m = v3();
         m.upgrades[0].prices = vec![10, 10];
         assert!(m.validate().unwrap_err().contains("must rise"));
 
-        let mut m = v2();
-        m.upgrades[2].prices = vec![60, 90];
+        let mut m = v3();
+        m.upgrades[3].prices = vec![60, 90];
         assert!(m.validate().unwrap_err().contains("exactly one level"));
     }
 }
