@@ -12,3 +12,4 @@ pub mod db;
 pub mod http;
 pub mod platform;
 pub mod scenarios;
+pub mod systems;
