@@ -1,0 +1,4 @@
+<template>
+  <BuildMismatch />
+  <NuxtPage />
+</template>

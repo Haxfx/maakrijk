@@ -1,0 +1,25 @@
+name: maakrijk
+
+# Local PostgreSQL for development, preview and tests. One server, separate
+# databases: maakrijk_dev, maakrijk_preview and maakrijk_test (see
+# docs/build/decision-log.md, D7). Port 5450 avoids the other local projects.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: maakrijk
+      POSTGRES_PASSWORD: maakrijk_dev_only
+      POSTGRES_DB: maakrijk_dev
+    ports:
+      - "127.0.0.1:5450:5432"
+    volumes:
+      - maakrijk-db:/var/lib/postgresql/data
+      - ./infra/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maakrijk -d maakrijk_dev"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  maakrijk-db:

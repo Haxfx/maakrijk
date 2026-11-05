@@ -1,0 +1,38 @@
+{
+  "name": "maakrijk-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev --host 127.0.0.1 --port 3020",
+    "build": "nuxt generate",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "gen:api": "openapi-typescript ../../contracts/openapi.json -o app/types/api.d.ts",
+    "check:api": "openapi-typescript ../../contracts/openapi.json -o node_modules/.cache/api-check.d.ts && diff -q node_modules/.cache/api-check.d.ts app/types/api.d.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/nunito": "5.3.0",
+    "@pinia/nuxt": "1.0.3",
+    "nuxt": "4.6.2",
+    "pinia": "4.1.0",
+    "vue": "3.5.44",
+    "vue-router": "5.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@vitejs/plugin-vue": "6.0.10",
+    "@vue/test-utils": "2.5.1",
+    "happy-dom": "21.0.4",
+    "openapi-typescript": "^7.13.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5",
+    "vue-tsc": "3.3.13"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

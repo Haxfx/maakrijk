@@ -1,0 +1,18 @@
+use axum::Json;
+use axum::extract::State;
+use serde::Serialize;
+
+use crate::app::AppState;
+use crate::http::error::ApiResult;
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct Health {
+    pub status: &'static str,
+}
+
+/// Liveness plus a database round trip.
+#[utoipa::path(get, path = "/api/health", tag = "ops", responses((status = 200, body = Health)))]
+pub async fn health(State(state): State<AppState>) -> ApiResult<Json<Health>> {
+    sqlx::query("SELECT 1").execute(&state.db).await?;
+    Ok(Json(Health { status: "ok" }))
+}
