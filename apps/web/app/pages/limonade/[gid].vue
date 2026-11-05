@@ -120,6 +120,8 @@ const secondary = `${btn} bg-ivory text-teal-dark ring-2 ring-teal/40`
         </p>
       </main>
 
+      <RoundSummary v-if="view.nextStep === 'summary' && view.lastRound" :summary="view.lastRound" :busy="busy" @next="seen" />
+
       <section
         class="border-t-4 border-sand bg-ivory px-4 py-3 short:py-2"
         style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))"
@@ -140,10 +142,7 @@ const secondary = `${btn} bg-ivory text-teal-dark ring-2 ring-teal/40`
 
           <!-- Actions, depending on the next step -->
           <div class="flex flex-wrap items-center justify-end gap-2">
-            <template v-if="view.nextStep === 'summary'">
-              <button type="button" :class="primary" :disabled="busy" @click="seen">{{ t.common.close }}</button>
-            </template>
-            <template v-else>
+            <template v-if="view.nextStep !== 'summary'">
               <div v-if="making" class="flex min-w-40 flex-col gap-1" data-testid="making">
                 <p class="text-sm font-bold">{{ t.lemonade.making }}</p>
                 <div class="h-3 overflow-hidden rounded-full bg-sand" role="progressbar" :aria-valuenow="Math.round(makeProgress * 100)" aria-valuemin="0" aria-valuemax="100">

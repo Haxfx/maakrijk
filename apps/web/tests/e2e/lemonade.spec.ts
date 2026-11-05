@@ -44,13 +44,43 @@ test('a full round: buy, make, open, serve four customers, see the summary', asy
     await expect(coins(page)).toHaveText(`${8 + 2 * i} munten`)
     await expect(jug(page)).toContainText(i === 3 ? '1 beker' : `${4 - i} bekers`)
   }
-  await expect(page.getByTestId('goal')).toContainText('Je ronde is klaar!')
   await expect(coins(page)).toHaveText('16 munten')
 
-  // After a refresh the game is exactly where it was.
+  const dialog = page.getByRole('dialog', { name: 'Ronde klaar!' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('Je hebt alle 4 klanten geholpen.')
+  await expect(page.getByTestId('summary-sold')).toContainText('8')
+  await expect(page.getByTestId('summary-materials')).toContainText('4')
+  await expect(page.getByTestId('summary-left')).toContainText('4')
+
+  // After a refresh the game is exactly where it was, summary included.
   await page.reload()
   await expect(coins(page)).toHaveText('16 munten')
-  await expect(page.getByTestId('goal')).toContainText('Je ronde is klaar!')
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: 'Volgende ronde' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByTestId('goal')).toContainText('Koop citroenen en suiker')
+  await page.reload()
+  await expect(page.getByTestId('goal')).toContainText('Koop citroenen en suiker')
+})
+
+test('closing early: summary shows what was sold, leftover cups stay', async ({ page }) => {
+  await startLemonade(page, 'Vroeg')
+  await page.getByRole('button', { name: 'Koop voor 1 kan · 4 munten' }).click()
+  await page.getByRole('button', { name: 'Maak limonade' }).click()
+  await page.getByRole('button', { name: 'Open de kraam' }).click()
+  await expect(page.getByTestId('serve')).toBeEnabled({ timeout: 6000 })
+  await page.getByTestId('serve').click()
+  await expect(coins(page)).toHaveText('10 munten')
+  await page.getByRole('button', { name: 'Kraam sluiten' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Ronde klaar!' })
+  await expect(dialog).toContainText('Je hebt 1 van de 4 klanten geholpen.')
+  await expect(page.getByTestId('summary-sold')).toContainText('2')
+  await expect(page.getByTestId('summary-materials')).toContainText('1')
+  await expect(page.getByTestId('summary-left')).toContainText('1')
+  await dialog.getByRole('button', { name: 'Volgende ronde' }).click()
+  await expect(jug(page)).toContainText('3 bekers')
+  await expect(page.getByTestId('goal')).toContainText('Open je kraam')
 })
 
 test('refresh while the jug is being made: no second jug, ready by server time', async ({ page }) => {
