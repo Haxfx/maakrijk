@@ -1,8 +1,8 @@
-// Read model of the lemonade clicker (services/api/src/scenarios/lemonade/rules.rs `view`).
+// Read model of the lemonade idle clicker (services/api/src/scenarios/lemonade/rules.rs `view`).
 
-export type UpgradeId = 'press' | 'helper' | 'tree'
-/** 'tap' or 'upgrade:<id>' (the cheapest upgrade the child can afford). */
-export type NextStep = 'tap' | `upgrade:${UpgradeId}`
+export type UpgradeId = 'press' | 'helper' | 'advert' | 'tree'
+/** 'wait' (keep saving) or 'upgrade:<id>': the cheapest affordable upgrade that speeds up selling by itself. */
+export type NextStep = 'wait' | `upgrade:${UpgradeId}`
 
 export interface LemonadeUpgrade {
   id: UpgradeId
@@ -10,6 +10,10 @@ export interface LemonadeUpgrade {
   maxLevel: number
   /** Null at the highest level. */
   nextPrice: number | null
+  /** Effect now and after buying: cups per tap (press), cups per minute by itself
+   *  (helper, advert) or coins per jug (tree). `next` is null at the highest level. */
+  now: number
+  next: number | null
 }
 
 export interface LemonadeStats {
@@ -27,8 +31,12 @@ export interface LemonadeView {
   jugCost: number
   cupsPerJug: number
   cupsPerTap: number
-  helperMilliCupsPerSecond: number
-  /** Coins per minute from helpers, after ingredients. */
+  /** Thousandths of a cup the stand sells by itself per second. */
+  autoMilliCupsPerSecond: number
+  /** Part of the next cup already made, and the time it was counted to. */
+  carryMilli: number
+  settledTo: string | null
+  /** Coins per minute by itself, after ingredients. */
   perMinute: number
   jugLeft: number
   upgrades: LemonadeUpgrade[]

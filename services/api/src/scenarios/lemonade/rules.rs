@@ -1,10 +1,11 @@
-//! Lemonade stand rules v2: the clicker core
-//! (docs/build/contracts/0.2-game-core.md §5, docs/03 §5–§8, decision D13).
+//! Lemonade stand rules v3: an idle clicker
+//! (docs/build/contracts/0.2-game-core.md §5, docs/03 §5–§8, decisions D13/D14).
 //!
-//! Tapping the press sells cups. Ingredients for a jug are bought
-//! automatically when a new jug starts. Upgrades make taps worth more, add
-//! helpers that keep selling (also while away, at most `away_cap_ms`) or make
-//! an ingredient free.
+//! The stand sells cups by itself from the start; tapping the press sells
+//! extra cups. Ingredients for a jug are bought automatically when a new jug
+//! starts. Upgrades add helpers and advertising (faster selling by itself,
+//! also while away, at most `away_cap_ms`), make taps worth more or make an
+//! ingredient free.
 
 use std::collections::BTreeMap;
 
@@ -93,17 +94,19 @@ pub fn cups_per_tap(m: &Manifest, s: &State) -> i64 {
         .sum::<i64>()
 }
 
-/// Thousandths of a cup the helpers make per second.
-pub fn helper_rate(m: &Manifest, s: &State) -> i64 {
-    m.upgrades
-        .iter()
-        .map(|u| match u.effect {
-            Effect::HelperMilliCupsPerSecond { per_level } => {
-                per_level * i64::from(level(s, &u.id))
-            }
-            _ => 0,
-        })
-        .sum()
+/// Thousandths of a cup the stand sells by itself per second: the base
+/// rate plus helpers, times the advertising boost.
+pub fn auto_rate(m: &Manifest, s: &State) -> i64 {
+    let (mut add, mut boost) = (0, 0);
+    for u in &m.upgrades {
+        let n = i64::from(level(s, &u.id));
+        match u.effect {
+            Effect::HelperMilliCupsPerSecond { per_level } => add += per_level * n,
+            Effect::AutoBoostPermille { per_level } => boost += per_level * n,
+            _ => {}
+        }
+    }
+    (m.auto_milli_cups_per_second + add) * (1000 + boost) / 1000
 }
 
 /// Ingredient cost of one jug, after free ingredients.
@@ -156,11 +159,15 @@ fn sell(
     Ok((revenue, materials))
 }
 
-/// Let the helpers work up to `ctx.now`, at most `away_cap_ms` at a time.
+/// Sell by itself up to `ctx.now`, at most `away_cap_ms` at a time.
 pub fn settle(m: &Manifest, s: &mut State, ctx: &mut RuleCtx) -> RuleResult<()> {
     let now = ctx.now;
     let Some(from) = s.settled_to else {
-        s.settled_to = Some(now);
+        // The clock starts with the first command; reading does not start it,
+        // so the view never shows selling the server will not book.
+        if ctx.command_id.is_some() {
+            s.settled_to = Some(now);
+        }
         return Ok(());
     };
     if now <= from {
@@ -168,7 +175,7 @@ pub fn settle(m: &Manifest, s: &mut State, ctx: &mut RuleCtx) -> RuleResult<()> 
     }
     let gap = (now - from).num_milliseconds();
     let worked = gap.min(m.away_cap_ms);
-    let rate = helper_rate(m, s);
+    let rate = auto_rate(m, s);
     s.settled_to = Some(now);
     if rate == 0 {
         return Ok(());
@@ -294,14 +301,32 @@ pub fn convert_v1(m: &Manifest, old: &Value, ctx: &mut RuleCtx) -> RuleResult<St
     Ok(s)
 }
 
-/// What the child should do next: tap, or buy the cheapest upgrade they can
-/// afford once they have sold their first jug.
-pub fn next_step(m: &Manifest, s: &State, coins: i64) -> String {
-    if s.stats.cups_sold < m.recipe.cups {
-        return "tap".into();
+/// Continue a version 2 game (clicker without selling by itself). The state
+/// fits as it is; time starts counting now, so nobody gets hours of selling
+/// that did not exist yet.
+pub fn convert_v2(old: &Value, ctx: &mut RuleCtx) -> RuleResult<State> {
+    let mut s: State =
+        serde_json::from_value(old.clone()).map_err(|_| RuleError::new("bad_state"))?;
+    if s.schema != STATE_SCHEMA {
+        return Err(RuleError::new("bad_state"));
     }
+    s.settled_to = Some(ctx.now);
+    s.carry_milli = 0;
+    ctx.emit(
+        "GameConverted",
+        ctx.now,
+        json!({ "refund": 0, "jugLeft": s.jug_left }),
+    );
+    Ok(s)
+}
+
+/// What to point at next: the cheapest affordable upgrade that makes the
+/// stand sell faster by itself (or cheaper), else keep going (`wait`).
+/// The better press is never pointed at: tapping is a bonus, not the core.
+pub fn next_step(m: &Manifest, s: &State, coins: i64) -> String {
     m.upgrades
         .iter()
+        .filter(|u| !matches!(u.effect, Effect::CupsPerTap { .. }))
         .filter_map(|u| {
             let have = level(s, &u.id);
             let price = *u.prices.get(have as usize)?;
@@ -310,7 +335,19 @@ pub fn next_step(m: &Manifest, s: &State, coins: i64) -> String {
             (coins >= price && can_continue(m, &next, coins - price)).then_some((price, &u.id))
         })
         .min()
-        .map_or_else(|| "tap".into(), |(_, id)| format!("upgrade:{id}"))
+        .map_or_else(|| "wait".into(), |(_, id)| format!("upgrade:{id}"))
+}
+
+/// What an upgrade does at a level, as one number for the card: cups per tap
+/// (press), cups per minute by itself (helper, advert) or jug cost (tree).
+fn effect_value(m: &Manifest, s: &State, id: &str, at: u32) -> i64 {
+    let mut s = s.clone();
+    s.upgrades.insert(id.to_string(), at);
+    match m.upgrade(id).map(|u| &u.effect) {
+        Some(Effect::CupsPerTap { .. }) => cups_per_tap(m, &s),
+        Some(Effect::FreeIngredient { .. }) => jug_cost(m, &s),
+        _ => auto_rate(m, &s) * 60 / 1000,
+    }
 }
 
 pub fn view(m: &Manifest, s: &State, coins: i64, _now: DateTime<Utc>) -> Value {
@@ -319,17 +356,20 @@ pub fn view(m: &Manifest, s: &State, coins: i64, _now: DateTime<Utc>) -> Value {
         .iter()
         .map(|u| {
             let have = level(s, &u.id);
+            let max = u.prices.len() as u32;
             json!({
                 "id": u.id,
                 "level": have,
-                "maxLevel": u.prices.len(),
+                "maxLevel": max,
                 "nextPrice": u.prices.get(have as usize),
+                "now": effect_value(m, s, &u.id, have),
+                "next": (have < max).then(|| effect_value(m, s, &u.id, have + 1)),
             })
         })
         .collect();
-    let rate = helper_rate(m, s);
+    let rate = auto_rate(m, s);
     let cost = jug_cost(m, s);
-    // Coins per minute from helpers, after ingredients (rounded down).
+    // Coins per minute by itself, after ingredients (rounded down).
     let per_minute = rate * 60 * (m.cup_price * m.recipe.cups - cost) / (1000 * m.recipe.cups);
     json!({
         "coins": coins,
@@ -337,7 +377,9 @@ pub fn view(m: &Manifest, s: &State, coins: i64, _now: DateTime<Utc>) -> Value {
         "jugCost": cost,
         "cupsPerJug": m.recipe.cups,
         "cupsPerTap": cups_per_tap(m, s),
-        "helperMilliCupsPerSecond": rate,
+        "autoMilliCupsPerSecond": rate,
+        "carryMilli": s.carry_milli,
+        "settledTo": s.settled_to,
         "perMinute": per_minute,
         "jugLeft": s.jug_left,
         "upgrades": upgrades,

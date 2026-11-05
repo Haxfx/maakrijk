@@ -9,16 +9,26 @@ export const lemonade = {
     name: 'Limonade',
     title: (name: string) => `${possessive(name)} Limonade`,
     coins: (n: number) => `${n} munten`,
-    perMinute: (n: number) => `+${n} per minuut`,
-    /** Goal card: what to do next. */
+    /** Under the coins: what the stand earns by itself. */
+    perMinute: (n: number) => `Vanzelf: +${n} per minuut`,
+    /** Goal card: the stand works by itself; upgrades make it faster. */
     goal: {
-      tap: 'Tik op de pers om limonade te verkopen',
-      upgrade: 'Je kunt iets verbeteren! Tik op het pijltje',
+      wait: 'Je kraam verkoopt vanzelf! Spaar voor een verbetering.',
+      waitHint: 'Tik op de pers om sneller te sparen.',
+      upgrade: {
+        helper: 'Neem een hulpje aan: dan verkoopt je kraam sneller vanzelf. Tik op het bordje.',
+        advert: 'Maak reclame: dan komen er vanzelf meer klanten. Tik op het grote bord.',
+        tree: 'Plant een citroenboom: dan wordt elke kan goedkoper. Tik op het plantje.',
+        press: 'Je kunt de pers verbeteren. Tik op het pijltje.',
+      },
     },
+    /** Progress bar over the jug: the next cup sold by itself. */
+    nextCup: 'Volgende beker',
     /** Labels of the tappable objects (read aloud, also used by tests). */
     tap: {
       press: (cups: number, price: number) => `Pers limonade: ${bekers(cups)}, ${munten(cups * price)}`,
       till: 'Bekijk je kassa',
+      advert: 'Reclamebord',
       upgrade: (name: string) => `Verbeter: ${name}`,
     },
     jug: (n: number) => `In de kan: ${bekers(n)}`,
@@ -29,20 +39,26 @@ export const lemonade = {
   },
   /** Upgrades, by id (manifest v2). `effect` describes one level. */
   upgrades: {
+    // `effect` gets the number from the server: cups per tap, cups per
+    // minute by itself, or what one jug costs.
     press: {
       name: 'Betere pers',
-      effect: (level: number) => `${bekers(level + 1)} per tik`,
-      explain: 'Met een betere pers maak je meer bekers per tik.',
+      effect: (n: number) => `${bekers(n)} per tik`,
+      explain: 'Met een betere pers verkoop je meer bekers als je zelf op de pers tikt.',
     },
     helper: {
       name: 'Hulpje',
-      // Each level sells 30 cups a minute (manifest: 500 thousandths per second).
-      effect: (level: number) => (level === 0 ? 'Nog geen hulp' : `${level * 30} bekers per minuut`),
+      effect: (n: number) => `${bekers(n)} per minuut vanzelf`,
       explain: 'Een hulpje verkoopt limonade voor je, ook als je even weg bent (tot 2 uur).',
+    },
+    advert: {
+      name: 'Reclame',
+      effect: (n: number) => `${bekers(n)} per minuut vanzelf`,
+      explain: 'Met reclame komen er meer klanten. Alles wat vanzelf gaat, gaat de helft sneller.',
     },
     tree: {
       name: 'Citroenboom',
-      effect: (level: number) => (level === 0 ? 'Citroenen kopen' : 'Gratis citroenen'),
+      effect: (n: number) => `Een kan kost ${munten(n)}`,
       explain: 'Met een eigen boom hoef je geen citroenen meer te kopen. Elke kan kost dan minder.',
     },
   },
@@ -60,7 +76,7 @@ export const lemonade = {
   stats: {
     title: 'Je kassa',
     cups: (n: number) => `Je hebt ${bekers(n)} verkocht.`,
-    byHelpers: (n: number) => `Je hulpjes verkochten er ${n}.`,
+    byHelpers: (n: number) => `Vanzelf verkocht: ${bekers(n)}.`,
     sold: 'Verkocht',
     materials: 'Materialen',
     left: 'Over',
@@ -72,9 +88,9 @@ export const lemonade = {
   },
   away: {
     title: 'Welkom terug!',
-    sold: (cups: number) => `Je hulpjes verkochten ${bekers(cups)} terwijl je weg was.`,
+    sold: (cups: number) => `Je kraam verkocht ${bekers(cups)} terwijl je weg was.`,
     earned: (n: number) => `Dat leverde ${munten(n)} op.`,
-    capped: 'Hulpjes werken maximaal 2 uur als je weg bent.',
+    capped: 'Je kraam werkt maximaal 2 uur door als je weg bent.',
     ok: 'Fijn!',
   },
   /** Lemonade refusal codes (contract 0.2 §5). Calm, no blame. */

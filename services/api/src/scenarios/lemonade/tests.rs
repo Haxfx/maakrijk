@@ -21,8 +21,19 @@ struct Game {
 }
 
 impl Game {
+    /// A stand that only sells when tapped, so tap arithmetic stays exact.
     fn new() -> Self {
-        let rules = Lemonade::new();
+        let mut m = super::manifest::v3();
+        m.auto_milli_cups_per_second = 0;
+        Self::with(Lemonade::with_manifest(m))
+    }
+
+    /// The real definition: sells by itself from the start.
+    fn real() -> Self {
+        Self::with(Lemonade::new())
+    }
+
+    fn with(rules: Lemonade) -> Self {
         let start = rules.start();
         Self {
             rules,
@@ -104,7 +115,7 @@ impl Game {
 fn first_tap_buys_a_jug_and_sells_a_cup() {
     let mut g = Game::new();
     assert_eq!(g.coins, 12);
-    assert_eq!(g.view()["nextStep"], "tap");
+    assert_eq!(g.view()["nextStep"], "wait");
     g.tap(1).unwrap();
     // +2 for the cup, -4 for the ingredients of a jug of 4.
     assert_eq!(g.coins, 10);
@@ -149,7 +160,8 @@ fn the_better_press_makes_taps_worth_more() {
     let mut g = Game::new();
     assert_eq!(g.buy("press").unwrap_err(), "would_get_stuck");
     g.tap(4).unwrap(); // 16
-    assert_eq!(g.view()["nextStep"], "upgrade:press");
+    // The press is never pointed at: tapping is a bonus.
+    assert_eq!(g.view()["nextStep"], "wait");
     g.buy("press").unwrap();
     assert_eq!(g.coins, 6);
     assert_eq!(g.view()["cupsPerTap"], 2);
@@ -203,6 +215,8 @@ fn helpers_keep_selling_while_away_up_to_the_cap() {
     g.ledger = 1000;
     g.buy("helper").unwrap(); // 0.5 cup/s
     assert_eq!(g.view()["perMinute"], 30);
+    assert_eq!(g.view()["upgrades"][1]["now"], 30);
+    assert_eq!(g.view()["upgrades"][1]["next"], 60);
     g.wait(10_000);
     // The view shows 5 sold cups without saving anything.
     let before = g.coins;
@@ -280,7 +294,7 @@ fn random_play_never_breaks_the_economy() {
             let _ = if r < 7 {
                 g.tap(rng.gen_range(1..30))
             } else {
-                let id = ["press", "helper", "tree"][rng.gen_range(0..3)];
+                let id = ["press", "helper", "advert", "tree"][rng.gen_range(0..4)];
                 g.buy(id)
             };
             let s = g.typed();
@@ -294,4 +308,57 @@ fn random_play_never_breaks_the_economy() {
             );
         }
     }
+}
+
+#[test]
+fn the_stand_sells_by_itself_from_the_start() {
+    let mut g = Game::real();
+    assert_eq!(g.view()["perMinute"], 15);
+    assert_eq!(g.view()["autoMilliCupsPerSecond"], 250);
+    g.send(json!({ "type": "collect" })).unwrap(); // starts the clock
+    g.wait(16_000);
+    // 4 cups in 16 s: +8, one jug -4.
+    assert_eq!(g.view()["coins"], 16);
+    g.send(json!({ "type": "collect" })).unwrap();
+    assert_eq!(g.coins, 16);
+    assert_eq!(g.last_event("HelpersSold")["cups"], 4);
+    // 16 coins could pay the helper (15) but not the next jug: not yet.
+    assert_eq!(g.view()["nextStep"], "wait");
+    g.wait(12_000); // 3 more cups, a new jug: 18 coins, 1 cup left
+    // The helper is what the stand points at once it is affordable.
+    assert_eq!(g.view()["nextStep"], "upgrade:helper");
+    g.buy("helper").unwrap();
+    assert_eq!(g.view()["autoMilliCupsPerSecond"], 750);
+}
+
+#[test]
+fn advertising_multiplies_selling_by_itself() {
+    let mut g = Game::real();
+    g.coins = 1000;
+    g.ledger = 1000;
+    g.buy("helper").unwrap(); // 250 + 500
+    g.buy("advert").unwrap(); // x1.5
+    let v = g.view();
+    assert_eq!(v["autoMilliCupsPerSecond"], 1125);
+    assert_eq!(v["upgrades"][2]["now"], 67);
+    assert_eq!(v["upgrades"][2]["next"], 90);
+}
+
+#[test]
+fn a_version_2_game_starts_counting_now() {
+    let rules = Lemonade::new();
+    let then = Utc.with_ymd_and_hms(2026, 11, 5, 8, 0, 0).unwrap();
+    let now = then + Duration::hours(3);
+    let mut s = super::rules::initial(&super::manifest::v3());
+    s.settled_to = Some(then);
+    s.jug_left = 2;
+    let mut state = serde_json::to_value(&s).unwrap();
+    let mut ctx = RuleCtx::new(now, None, 20);
+    rules.upgrade(2, &mut state, &mut ctx).unwrap();
+    rules.settle(&mut state, &mut ctx).unwrap();
+    let (coins, ledger, _) = ctx.into_parts();
+    assert_eq!(coins, 20, "no selling for time before the upgrade");
+    assert!(ledger.is_empty());
+    let s: State = serde_json::from_value(state).unwrap();
+    assert_eq!(s.jug_left, 2);
 }

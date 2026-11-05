@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { ScreenRect } from '~/components/game/WorldHotspot.vue'
 import type { GameState } from '~/game/client'
 import type { Stage } from '~/game/stage'
 import type { LemonadeView, UpgradeId } from '~/game/lemonade/types'
-import { jugsForTaps, useLemonade } from '~/game/lemonade/useLemonade'
+import { useLemonade } from '~/game/lemonade/useLemonade'
 import { LEMONADE_ART, LEMONADE_BACKGROUND, LEMONADE_BOUNDS, LEMONADE_PROJECTION, LemonadeWorld, type SpotId } from '~/game/lemonade/world'
 import { t } from '~/locales/nl'
 import { useHouseholdStore } from '~/stores/household'
 
-// A clicker: tap the press to sell lemonade. Improvements are bought by
-// tapping their object (arrow on the press, the help-wanted sign, the sprout);
-// the till shows what you earned. No buttons under the world (D12, D13).
+// An idle clicker: the stand sells by itself, live on screen. Improvements
+// that make it faster are bought by tapping their object (help-wanted sign,
+// big sign, sprout, arrow on the press); tapping the press sells extra cups.
+// The till shows what you earned. No buttons under the world (D12–D14).
 
 const route = useRoute()
 const router = useRouter()
@@ -29,7 +30,8 @@ function show(g: GameState<LemonadeView>) {
   world.value.update(g.view)
 }
 
-const { game, view, coins, loadError, busy, notice, away, pendingTaps, refresh, tap, buy } = useLemonade(gameId, show)
+const { game, view, live, loadError, busy, notice, away, refresh, tap, buy } = useLemonade(gameId, show)
+const coins = computed(() => live.value?.coins ?? 0)
 
 /** Tap targets in screen pixels, moved after every drawn frame. */
 const spots = shallowRef<{ id: SpotId; rect: ScreenRect }[]>([])
@@ -52,6 +54,7 @@ function onStage(stage: Stage) {
     world.value.update(pending.view)
     pending = null
   }
+  if (live.value && view.value) world.value.live(live.value, view.value.cupsPerJug)
 }
 
 onMounted(async () => {
@@ -61,10 +64,12 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => stopRender?.())
 
-const UPGRADE_OF: Partial<Record<SpotId, UpgradeId>> = { 'press-up': 'press', helper: 'helper', tree: 'tree' }
+const UPGRADE_OF: Partial<Record<SpotId, UpgradeId>> = { 'press-up': 'press', helper: 'helper', advert: 'advert', tree: 'tree' }
+const SPOT_OF: Record<UpgradeId, SpotId> = { press: 'press-up', helper: 'helper', advert: 'advert', tree: 'tree' }
 const PICTURE: Record<UpgradeId, string> = {
   press: LEMONADE_ART.press.url,
   helper: LEMONADE_ART.helpSign.url,
+  advert: LEMONADE_ART.sign.url,
   tree: LEMONADE_ART.lemonTree.url,
 }
 
@@ -77,23 +82,40 @@ function canBuy(id: UpgradeId): boolean {
   return !!u && u.nextPrice !== null && coins.value >= u.nextPrice
 }
 
-const hintId = computed<SpotId | null>(() => {
-  const v = view.value
-  if (!v) return null
-  if (v.nextStep === 'tap') return v.stats.cupsSold < v.cupsPerJug ? 'press' : null
-  const id = v.nextStep.slice(8) as UpgradeId
-  return id === 'press' ? 'press-up' : id
+/** The upgrade the server points at: only ones that speed up selling by itself. */
+const suggested = computed<UpgradeId | null>(() => {
+  const s = view.value?.nextStep
+  return s?.startsWith('upgrade:') ? (s.slice(8) as UpgradeId) : null
 })
-const goal = computed(() => (view.value?.nextStep.startsWith('upgrade') ? t.lemonade.goal.upgrade : t.lemonade.goal.tap))
+const hintId = computed<SpotId | null>(() => (suggested.value ? SPOT_OF[suggested.value] : null))
+const goal = computed(() => (suggested.value ? t.lemonade.goal.upgrade[suggested.value] : t.lemonade.goal.wait))
 
-/** Floating "+2" texts over the press; purely decoration. */
-const floats = ref<{ id: number; text: string; x: number; cost?: boolean }[]>([])
+/** Floating texts: "+2" over the press or the till, ingredient cost over the jug. Decoration only. */
+type FloatAt = 'press' | 'till' | 'jug'
+const floats = ref<{ id: number; text: string; x: number; at: FloatAt }[]>([])
 let floatId = 0
-function float(text: string, cost = false) {
+function float(text: string, at: FloatAt) {
   const id = ++floatId
-  floats.value = [...floats.value.slice(-6), { id, text, cost, x: cost ? 0 : Math.round(Math.random() * 40 - 20) }]
-  setTimeout(() => (floats.value = floats.value.filter((f) => f.id !== id)), cost ? 1400 : 900)
+  floats.value = [...floats.value.slice(-8), { id, text, at, x: at === 'jug' ? 0 : Math.round(Math.random() * 40 - 20) }]
+  setTimeout(() => (floats.value = floats.value.filter((f) => f.id !== id)), at === 'jug' ? 1400 : 900)
 }
+
+// Watch the live stand: cups sold by itself show "+2" at the till, every new
+// jug shows its ingredient cost, and the world moves along.
+let tappedCups = 0
+watch(live, (l, prev) => {
+  const v = view.value
+  if (!l || !v) return
+  world.value?.live(l, v.cupsPerJug)
+  if (!prev) return
+  const cups = l.cupsSold - prev.cupsSold
+  if (cups > 0) {
+    const fromTaps = Math.min(cups, tappedCups)
+    tappedCups -= fromTaps
+    if (cups > fromTaps) float(t.lemonade.earned((cups - fromTaps) * v.cupPrice), 'till')
+  }
+  if (l.materials > prev.materials) float(t.lemonade.ingredients(l.materials - prev.materials), 'jug')
+})
 
 const shaking = ref<SpotId | null>(null)
 let shakeTimer: ReturnType<typeof setTimeout> | undefined
@@ -111,12 +133,10 @@ function onTap(id: SpotId) {
   const v = view.value
   if (!v) return
   if (id === 'press') {
-    // The first cup of a new jug pays for its ingredients: show why coins dip.
-    const p = pendingTaps.value
-    if (jugsForTaps(v, p + 1) > jugsForTaps(v, p)) float(t.lemonade.ingredients(v.jugCost), true)
+    tappedCups += v.cupsPerTap
     tap()
     world.value?.tapped()
-    float(t.lemonade.earned(v.cupsPerTap * v.cupPrice))
+    float(t.lemonade.earned(v.cupsPerTap * v.cupPrice), 'press')
   } else if (id === 'till') statsOpen.value = true
   else if (UPGRADE_OF[id]) card.value = UPGRADE_OF[id]!
 }
@@ -134,7 +154,7 @@ async function buyCard() {
 function label(id: SpotId, v: LemonadeView): string {
   if (id === 'press') return t.lemonade.tap.press(v.cupsPerTap, v.cupPrice)
   if (id === 'till') return t.lemonade.tap.till
-  if (id === 'jug') return t.lemonade.jug(v.jugLeft)
+  if (id === 'jug') return t.lemonade.jug(live.value?.jugLeft ?? v.jugLeft)
   return t.lemonade.tap.upgrade(t.upgrades[UPGRADE_OF[id]!].name)
 }
 </script>
@@ -183,17 +203,31 @@ function label(id: SpotId, v: LemonadeView): string {
               <svg width="14" height="16" viewBox="0 0 14 16"><path d="M7 1 L13 8 L9.5 8 L9.5 15 L4.5 15 L4.5 8 L1 8 Z" fill="#167d8d" /></svg>
               {{ upgradeOf(UPGRADE_OF[s.id]!)?.nextPrice }}
             </span>
-            <span v-if="s.id === 'jug' && view.jugLeft > 0" class="badge absolute -top-3 -right-4" data-testid="jug-count" role="status" :aria-label="t.lemonade.jug(view.jugLeft)">
+            <span v-if="s.id === 'jug' && live && live.jugLeft > 0" class="badge absolute -top-3 -right-4" data-testid="jug-count" role="status" :aria-label="t.lemonade.jug(live.jugLeft)">
               <img :src="LEMONADE_ART.cup.url" alt="" class="h-5 w-auto" />
-              {{ view.jugLeft }}
+              {{ live.jugLeft }}
             </span>
-            <template v-if="s.id === 'press'">
+            <!-- The stand works by itself: a bar fills toward the next cup. -->
+            <span v-if="s.id === 'jug' && live && view.autoMilliCupsPerSecond > 0" class="absolute -bottom-5 left-1/2 flex w-28 -translate-x-1/2 items-center gap-1" data-testid="next-cup">
+              <img :src="LEMONADE_ART.cup.url" alt="" class="h-6 w-auto shrink-0" />
               <span
-                v-for="f in floats"
+                class="block h-4 flex-1 overflow-hidden rounded-full bg-ivory ring-2 ring-[#5b3a24]"
+                role="progressbar"
+                :aria-label="t.lemonade.nextCup"
+                :aria-valuenow="Math.round(live.progress * 100)"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
+                <span class="block h-full rounded-full bg-leaf" :style="{ width: `${live.progress * 100}%` }" />
+              </span>
+            </span>
+            <template v-if="s.id === 'press' || s.id === 'till' || s.id === 'jug'">
+              <span
+                v-for="f in floats.filter((x) => x.at === s.id)"
                 :key="f.id"
                 class="float pointer-events-none absolute left-1/2 top-0 font-extrabold"
-                :class="f.cost ? 'cost text-base text-white' : 'text-2xl text-gold'"
-                :data-testid="f.cost ? 'float-cost' : undefined"
+                :class="f.at === 'jug' ? 'cost text-base text-white' : 'text-2xl text-gold'"
+                :data-testid="`float-${f.at}`"
                 :style="{ marginLeft: `${f.x}px` }"
                 aria-hidden="true"
               >{{ f.text }}</span>
@@ -208,6 +242,7 @@ function label(id: SpotId, v: LemonadeView): string {
         aria-live="polite"
       >
         <p class="font-extrabold">{{ goal }}</p>
+        <p v-if="!suggested" class="text-sm text-ink-soft">{{ t.lemonade.goal.waitHint }}</p>
       </div>
       <p
         v-if="notice"
