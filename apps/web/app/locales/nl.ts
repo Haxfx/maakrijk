@@ -3,6 +3,56 @@ export const t = {
   appName: 'Maakrijk',
   common: {
     back: 'Terug',
+    cancel: 'Annuleren',
+    save: 'Opslaan',
+    close: 'Sluiten',
+    settings: 'Instellingen',
+    retry: 'Opnieuw proberen',
+  },
+  players: {
+    title: 'Wie speelt er?',
+    newPlayer: 'Nieuwe speler',
+    manage: 'Spelers beheren',
+    doneManaging: 'Klaar',
+    edit: 'Aanpassen',
+    remove: 'Verwijderen',
+    play: (name: string) => `Spelen als ${name}`,
+    empty: 'Maak eerst een speler aan.',
+    newTitle: 'Nieuwe speler',
+    editTitle: 'Speler aanpassen',
+    nickname: 'Bijnaam',
+    nicknameHint: 'Gebruik geen echte achternaam.',
+    avatar: 'Kies een plaatje',
+    avatarLabel: (n: number) => `Plaatje ${n}`,
+    create: 'Maken',
+    removeTitle: (name: string) => `${name} verwijderen?`,
+    removeBody: 'Alles van deze speler wordt gewist. Dit kun je niet terugdraaien.',
+    removeConfirm: 'Ja, verwijderen',
+    switch: 'Andere speler',
+    limitReached: 'Er zijn al 8 spelers.',
+  },
+  start: {
+    hello: (name: string) => `Hoi ${name}!`,
+    title: 'Wat ga jij maken?',
+    noBusinesses: 'Je hebt nog geen bedrijfjes.',
+  },
+  settings: {
+    title: 'Instellingen',
+    reduceMotion: 'Minder beweging',
+    bigText: 'Grote tekst',
+    note: 'Deze instellingen gelden op dit apparaat.',
+    done: 'Klaar',
+  },
+  errors: {
+    offline: 'Geen verbinding met de server. Probeer het zo nog eens.',
+    nickname_length: 'Een bijnaam heeft 1 tot 20 tekens.',
+    nickname_invalid: 'Deze bijnaam kan niet. Gebruik letters en cijfers.',
+    nickname_taken: 'Deze bijnaam bestaat al. Kies een andere.',
+    avatar_invalid: 'Kies een plaatje.',
+    profile_limit: 'Er zijn al 8 spelers. Verwijder eerst een speler.',
+    not_found: 'Deze speler bestaat niet meer.',
+    unauthorized: 'Je sessie is verlopen. Ververs de pagina.',
+    unknown: 'Er ging iets mis. Probeer het opnieuw.',
   },
   build: {
     serverOlder: 'De server is ouder dan deze pagina.',
@@ -25,3 +75,9 @@ export const t = {
     migration: 'Laatste migratie',
   },
 } as const
+
+/** Dutch text for an API error code. */
+export function errorText(code: string): string {
+  const map = t.errors as Record<string, string>
+  return map[code] ?? t.errors.unknown
+}
