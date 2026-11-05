@@ -124,6 +124,12 @@ pub trait Ruleset: Send + Sync {
     fn settle(&self, state: &mut Value, ctx: &mut RuleCtx) -> RuleResult<()>;
     /// Validate and apply one command. On `Err` the platform discards everything.
     fn apply(&self, state: &mut Value, command: &Value, ctx: &mut RuleCtx) -> RuleResult<()>;
+    /// Convert a game stored under an older ruleset version to the current
+    /// one. May book coins (e.g. pay back stock that no longer exists).
+    fn upgrade(&self, from_version: i32, _state: &mut Value, _ctx: &mut RuleCtx) -> RuleResult<()> {
+        let _ = from_version;
+        Err(RuleError::new("bad_state"))
+    }
     /// Read model for the client, computed from a settled state.
     fn view(&self, state: &Value, coins: i64, now: DateTime<Utc>) -> RuleResult<Value>;
 }
@@ -149,7 +155,8 @@ impl Registry {
         self.by_scenario.get(scenario_id)
     }
 
-    /// The ruleset for a stored instance, checking the ruleset id and version.
+    /// The ruleset for a stored instance, checking the ruleset id. Games on an
+    /// older ruleset version are converted with `Ruleset::upgrade`.
     pub fn for_instance(
         &self,
         scenario_id: &str,
@@ -157,7 +164,7 @@ impl Registry {
         ruleset_version: i32,
     ) -> Option<&Arc<dyn Ruleset>> {
         self.get(scenario_id)
-            .filter(|r| r.ruleset_id() == ruleset_id && r.ruleset_version() == ruleset_version)
+            .filter(|r| r.ruleset_id() == ruleset_id && r.ruleset_version() >= ruleset_version)
     }
 
     pub fn all(&self) -> impl Iterator<Item = &Arc<dyn Ruleset>> {

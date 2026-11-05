@@ -259,6 +259,19 @@ fn response(
     })
 }
 
+/// Bring a game on an older ruleset version to the current one.
+fn upgrade(
+    r: &dyn Ruleset,
+    row: &Row,
+    state: &mut Value,
+    ctx: &mut RuleCtx,
+) -> Result<(), ApiError> {
+    if row.ruleset_version == r.ruleset_version() {
+        return Ok(());
+    }
+    r.upgrade(row.ruleset_version, state, ctx).map_err(rule_err)
+}
+
 /// Current state with time settled in memory. Nothing is written.
 pub async fn view(
     db: &PgPool,
@@ -274,11 +287,11 @@ pub async fn view(
     let now = clock.now();
     let mut state = row.state.clone();
     let mut ctx = RuleCtx::new(now, None, row.coins);
+    upgrade(r, &row, &mut state, &mut ctx)?;
     r.settle(&mut state, &mut ctx).map_err(rule_err)?;
-    let (coins, entries, _) = ctx.into_parts();
-    if !entries.is_empty() {
-        return Err(internal("settling must not book coins"));
-    }
+    // Bookings from settling (helpers selling) are shown but not written;
+    // the next command settles the same time again and books them once.
+    let (coins, _, _) = ctx.into_parts();
     response(&row, r, row.revision, coins, &state, now, &[])
 }
 
@@ -314,6 +327,7 @@ pub async fn execute(
     let r = ruleset(registry, &row)?;
     let mut state = row.state.clone();
     let mut ctx = RuleCtx::new(now, Some(command_id), row.coins);
+    upgrade(r, &row, &mut state, &mut ctx)?;
     r.settle(&mut state, &mut ctx).map_err(rule_err)?;
     r.apply(&mut state, command, &mut ctx).map_err(rule_err)?;
     let (coins, entries, events) = ctx.into_parts();
@@ -331,11 +345,15 @@ pub async fn execute(
         &entries,
     )
     .await?;
-    sqlx::query("UPDATE game_instances SET state = $2, coins = $3, revision = $4, updated_at = now() WHERE id = $1")
+    sqlx::query(
+        "UPDATE game_instances SET state = $2, coins = $3, revision = $4, scenario_version = $5, ruleset_version = $6, updated_at = now() WHERE id = $1",
+    )
         .bind(game)
         .bind(&state)
         .bind(coins)
         .bind(revision)
+        .bind(r.definition_version())
+        .bind(r.ruleset_version())
         .execute(&mut *tx)
         .await?;
     check_ledger(&mut tx, game, coins).await?;

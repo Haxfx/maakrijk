@@ -22,12 +22,14 @@ struct Step {
 
 struct Script {
     scenario: &'static str,
-    /// The complete chain from start to a finished, earning round.
+    /// The complete chain from start to earning with a first upgrade.
     chain: Vec<Step>,
     /// A command that is refused at the start of the game.
     refused: Value,
     /// Coins after the full chain.
     final_coins: i64,
+    /// Ledger rows after the start and the first chain command.
+    first_rows: i64,
 }
 
 fn step(wait_ms: i64, command: Value) -> Step {
@@ -38,17 +40,14 @@ fn scripts() -> Vec<Script> {
     vec![Script {
         scenario: "lemonade",
         chain: vec![
-            step(0, json!({"type": "buyStock", "lemons": 3, "sugar": 1})),
-            step(0, json!({"type": "makeJug"})),
-            step(3000, json!({"type": "openStand"})),
-            step(1000, json!({"type": "serveCustomer", "customerId": 1})),
-            step(2500, json!({"type": "serveCustomer", "customerId": 2})),
-            step(2500, json!({"type": "serveCustomer", "customerId": 3})),
-            step(2500, json!({"type": "serveCustomer", "customerId": 4})),
-            step(0, json!({"type": "seenRound", "roundId": 1})),
+            step(0, json!({"type": "tap", "count": 4})),
+            step(0, json!({"type": "buyUpgrade", "upgrade": "press"})),
+            step(1000, json!({"type": "tap", "count": 2})),
         ],
-        refused: json!({"type": "openStand"}),
-        final_coins: 16,
+        refused: json!({"type": "buyUpgrade", "upgrade": "press"}),
+        final_coins: 10,
+        // start + sale + ingredients of the first jug
+        first_rows: 3,
     }]
 }
 
@@ -199,7 +198,7 @@ async fn retry_returns_the_same_answer_and_conflicts_on_other_payload() {
         assert_eq!(other.status, StatusCode::CONFLICT);
         assert_eq!(other.body["code"], "command_conflict");
         let (_, rows, ..) = g.stored().await;
-        assert_eq!(rows, 2, "{}: start + one booking", s.scenario);
+        assert_eq!(rows, s.first_rows, "{}: start + one command", s.scenario);
     }
 }
 
@@ -234,7 +233,7 @@ async fn five_identical_concurrent_commands_have_one_effect() {
         let (sum, rows, coins, rev, _) = g.stored().await;
         assert_eq!(
             (rows, rev),
-            (2, rev0 + 1),
+            (s.first_rows, rev0 + 1),
             "{}: exactly one effect",
             s.scenario
         );
