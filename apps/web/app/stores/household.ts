@@ -34,6 +34,13 @@ export const useHouseholdStore = defineStore('household', {
         this.loadError = e instanceof ApiError ? e.code : 'unknown'
       }
     },
+    async refresh() {
+      try {
+        this.profiles = await api<Profile[]>('/profiles')
+      } catch {
+        // Keep the current list; the next action reports the problem.
+      }
+    },
     select(id: string | null) {
       this.selectedId = id
       writeLocal(SELECTED_KEY, id)

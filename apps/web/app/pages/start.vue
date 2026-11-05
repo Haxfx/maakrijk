@@ -20,7 +20,7 @@ function switchPlayer() {
   <div class="min-h-dvh">
     <AppHeader :title="household.selected ? t.start.hello(household.selected.nickname) : t.appName" :avatar="household.selected?.avatar">
       <template #right>
-        <IconButton icon="swap" :label="t.players.switch" @click="switchPlayer" />
+        <IconButton icon="swap" :label="t.players.switch" show-label @click="switchPlayer" />
         <IconButton icon="gear" :label="t.common.settings" to="/instellingen" />
       </template>
     </AppHeader>

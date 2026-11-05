@@ -25,7 +25,7 @@ function submit() {
         type="text"
         autocomplete="off"
         autocapitalize="words"
-        maxlength="40"
+        maxlength="20"
         class="min-h-12 w-full rounded-xl border-2 border-sand bg-white px-4 text-lg focus:border-teal focus:outline-none"
         :aria-invalid="error ? 'true' : undefined"
         :aria-describedby="error ? errorId : undefined"
@@ -36,11 +36,11 @@ function submit() {
 
     <fieldset>
       <legend class="mb-2 text-lg font-bold short:mb-1">{{ t.players.avatar }}</legend>
-      <div class="grid grid-cols-4 gap-2 short:gap-1 short:[&_svg]:size-11">
+      <div class="grid grid-cols-4 gap-2 short:gap-1 short:[&_svg]:size-9">
         <label
           v-for="(a, i) in AVATARS"
           :key="a"
-          class="grid cursor-pointer place-items-center rounded-2xl border-4 p-1 transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-gold"
+          class="grid cursor-pointer place-items-center rounded-2xl border-4 p-1 short:border-[3px] short:p-0.5 transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-gold"
           :class="avatar === a ? 'border-teal bg-teal/10' : 'border-transparent'"
         >
           <input v-model="avatar" type="radio" name="avatar" :value="a" class="sr-only" :aria-label="t.players.avatarLabel(i + 1)" />

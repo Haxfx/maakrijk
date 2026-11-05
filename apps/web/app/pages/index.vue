@@ -48,6 +48,8 @@ async function save(nickname: string, avatar: string) {
     formOpen.value = false
   } catch (e) {
     formError.value = errorText(codeOf(e))
+    // Another tab may have added players: show the real list (RC1 F8).
+    if (codeOf(e) === 'profile_limit') await household.refresh()
   } finally {
     busy.value = false
   }
@@ -109,15 +111,15 @@ async function confirmRemove() {
                 @click="play(p)"
               >
                 <AvatarIcon :id="p.avatar" :size="88" />
-                <span class="w-full truncate text-center text-xl font-extrabold">{{ p.nickname }}</span>
+                <span class="w-full text-center text-xl leading-tight font-extrabold break-words">{{ p.nickname }}</span>
               </button>
-              <div v-if="managing" class="grid grid-cols-2 border-t border-sand">
-                <button type="button" class="min-h-12 font-bold text-teal hover:bg-white" @click="openEdit(p)">
+              <div v-if="managing" class="grid grid-cols-1 border-t border-sand lg:grid-cols-2">
+                <button type="button" class="min-h-12 px-2 font-bold text-teal hover:bg-white" @click="openEdit(p)">
                   {{ t.players.edit }}
                 </button>
                 <button
                   type="button"
-                  class="min-h-12 border-l border-sand font-bold text-coral hover:bg-white"
+                  class="min-h-12 border-t border-sand px-2 font-bold text-coral hover:bg-white lg:border-t-0 lg:border-l"
                   :data-testid="`remove-${p.nickname}`"
                   @click="(removing = p), (removeError = null)"
                 >
