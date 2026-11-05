@@ -1,0 +1,28 @@
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Build output
+target/
+node_modules/
+.nuxt/
+.output*/
+.data/
+dist/
+
+# Test output
+playwright-report/
+test-results/
+coverage/
+
+# Database dumps and backups
+*.dump
+*.sql.gz
+backups/
+
+# Logs and editor files
+*.log
+.DS_Store
+.vscode/
+.idea/

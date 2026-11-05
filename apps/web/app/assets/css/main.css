@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+
+/* Design tokens. Start values from docs/01-PRODUCT-EN-ARCHITECTUUR.md §5,
+   plus the header teal and warm accents seen in docs/design/. */
+@theme {
+  --font-sans: 'Nunito Variable', ui-rounded, system-ui, sans-serif;
+
+  --color-cream: #fff7e8;
+  --color-ivory: #fffcf5;
+  --color-sand: #f3e6cc;
+  --color-ink: #243c40;
+  --color-ink-soft: #4d6266;
+  --color-teal: #167d8d;
+  --color-teal-dark: #0f6371;
+  --color-header: #1d4f58;
+  --color-leaf: #5b963f;
+  --color-gold: #f2bb45;
+  --color-coral: #d9603b;
+
+  --radius-card: 1.25rem;
+}
+
+:root {
+  /* Scaled by the "Grote tekst" setting (html.big-text). */
+  font-size: 100%;
+  color: var(--color-ink);
+  background: var(--color-cream);
+  -webkit-tap-highlight-color: transparent;
+}
+
+html.big-text {
+  font-size: 118.75%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--color-cream);
+  font-family: var(--font-sans);
+}
+
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
