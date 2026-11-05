@@ -57,6 +57,8 @@ Status: goedgekeurd door gebruiker 2026-11-05 (0.1–0.3 in detail; latere relea
 
 ## Release 0.2 — limonadekraam: eerste ronde
 
+> **Bijgesteld na RC 3 (D13).** De gebruiker wil de game als een clicker (genre: tikken om te verdienen, upgrades en automatisering kopen, passief inkomen, stijgende prijzen). 0.2 levert daarom de **clicker-kern**: tikken op de pers verkoopt limonade, ingrediënten automatisch per kan, upgrades betere pers / hulpje / citroenboom via het object in de wereld, hulpjes die doorwerken (max 2 uur weg), kassa met verkocht / materialen / over. De ronde-mechaniek (inkopen, kan maken, klanten bedienen) van RC 1–3 is vervangen; oude spellen worden omgezet. Feature-branch: `feature/0.2-clicker-kern`. Hieronder staat het oorspronkelijke plan ter referentie.
+
 **Doel.** Eén complete limonaderonde op de gedeelde platformkern, in een Three.js-wereld.
 
 **Gebruikerswaarde.** Het kind koopt citroenen en suiker, maakt een kan, opent de kraam, geeft klanten een beker en ziet verkocht / materialen / over. Na refresh gaat het spel verder waar het was.
@@ -91,6 +93,8 @@ Status: goedgekeurd door gebruiker 2026-11-05 (0.1–0.3 in detail; latere relea
 ---
 
 ## Release 0.3 — limonadekraam groeit
+
+> **Bijgesteld na D13.** De eerste upgrades (betere pers, hulpje, citroenboom) zitten al in 0.2. 0.3 richt zich op sterren-ledger, progressie/hoofdstukken, roze limonade, meer upgrades in de wereld (grotere kan, tweede kraam/plek), de balans-harness en het meten van tijd tot elke upgrade. De gedeelde catalogus wordt opgebouwd uit de upgrade-definities in het manifest.
 
 **Doel.** Gedeelde winkel en upgrades, sterren-ledger en progressiemotor, eerst toegepast op limonade.
 

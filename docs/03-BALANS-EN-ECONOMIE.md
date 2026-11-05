@@ -49,7 +49,24 @@ Specificatie voorbeelden:
 
 Deze waarden dienen om een klein speelbaar scenario te testen. Test niet alleen eindsaldo maar ook saldo en voorraad na iedere actie.
 
+### 5a. Limonade als clicker (balans `2026-11-b`, besluit D13)
+Vanaf 0.2 RC 4 is limonade een clicker: tikken op de pers verkoopt bekers. De receptcijfers hierboven blijven gelden, maar de ingrediënten worden **automatisch per kan** ingekocht.
+- Eén tik = `bekers per tik` bekers à 2 munten. Begint een nieuwe kan, dan wordt de kan (3 citroenen + 1 suiker = 4 munten) op dat moment afgeboekt als `materials`. Bijdrage per kan blijft 8 − 4 = 4.
+- Eerste tik: 12 → 10 (+2, −4). Na 4 tikken: 16.
+- Tikken worden door de client gebundeld; de server accepteert maximaal 12 tikken per seconde (buffer 24). Overtollige tikken worden genegeerd, niet geweigerd.
+
 ## 6. Upgrades: startvoorstel
+
+**Limonade (clicker, balans `2026-11-b`).** Prijzen per niveau zijn met de hand gekozen en stijgen; geen formule.
+
+| Upgrade | Object in de wereld | Prijzen per niveau | Effect per niveau |
+|---|---|---|---|
+| Betere pers | pijltje op de pers | 10, 30, 80, 200, 500 | +1 beker per tik |
+| Hulpje | bordje "hulp gezocht" | 20, 50, 120, 300, 700 | +0,5 beker per seconde (30 per minuut), ook als je weg bent |
+| Citroenboom | plantje naast de kist | 60 (één niveau) | citroenen gratis: een kan kost 1 munt in plaats van 4 |
+
+Eerste upgrade (betere pers, 10) is haalbaar na de eerste kan plus één tik: 16 munten na 4 tikken, maar kopen bij 16 laat 6 over en dat dekt de volgende kan. De oude tabel hieronder geldt voor de andere modi en als richting.
+
 | Modus | Upgrade | Prijs | Werkelijk effect |
 |---|---|---:|---|
 | Limonade | Grotere kan | 12 | 4 → 8 bekers capaciteit; geen gratis ingrediënten |
@@ -75,12 +92,16 @@ MVP-houding:
 - Incrementeel produceren/verkopen alleen wanneer modus dit ondersteunt.
 - Geen gratis materiaal uit retries of annuleringen.
 
+Limonade-clicker: een upgrade wordt geweigerd (`would_get_stuck`) als daarna `munten + bekers in de kan × bekerprijs < kosten van een kan`. Zo kan de volgende beker altijd gemaakt worden. Een tik kan daardoor nooit vastlopen (getest met 40 willekeurige spelverlopen).
+
 Als geen geldige vervolgstap bestaat: hersteloptie voor de concrete blokkade, expliciet gelogd en zonder farmbare sterren. Verberg structurele engineproblemen niet met steeds nieuw gratis geld.
 
 ## 8. Tijd en automatisering
 Voorstel actieve productietijden 2–6 seconden; lange groei mag visueel worden samengevat. Geen wachten van minuten als verplichte kernhandeling in de eerste release.
 
 Automatisering alleen als bestaande scope dit bevat: vaste servertijdlijn, monotone settledTo, budgetlimiet, expliciete stopreden en hoogstens één verwerking per moment. Persoonlijke leeropdrachten worden niet automatisch voltooid. Geen afwezigheidsstraf of onbeperkte achtergrondwinst.
+
+Limonade-hulpjes (D13): de server rekent bij elk command de tijd sinds `settledTo` af, met een **plafond van 2 uur** per afwezigheid (`awayCapMs`). Breuken van een beker blijven bewaard (`carryMilli`). Ledgerreferenties `sale:auto:<settledTo-ms>` en `materials:auto:<settledTo-ms>` maken elke afrekening uniek. Lezen (`GET`) rekent alleen in het geheugen af; het eerstvolgende command boekt precies één keer. Kijkt het kind lang naar het scherm, dan stuurt de client elke minuut `collect`, zodat het plafond alleen geldt voor echte afwezigheid. Bij terugkomst na meer dan een minuut toont de client "Welkom terug" met de verdiensten.
 
 ## 9. Balanscontrole
 Maak een deterministische simulatieharness met dezelfde Rust-domainregels, geen aparte vereenvoudigde spreadsheet-engine.

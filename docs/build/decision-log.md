@@ -94,5 +94,17 @@ Per beslissing: context, besluit, gevolg, status. Nieuwste onderaan. Status "Voo
 - Er is geen actiepaneel onder de wereld. Tellers staan als kleine badges op de objecten; het doelkaartje wijst de volgende stap aan, plus een pulserende ring en een pijl op het object.
 - Techniek: de gedeelde component `WorldHotspot` legt echte DOM-knoppen precies over de getekende objecten. De stage meldt elk getekend frame (`onRender`, `toScreen`), dus de knoppen bewegen mee met pan, zoom en lopende klanten. Toetsenbord, schermlezer (label per object) en tikdoelen ≥ 48 px blijven daardoor werken (`05` §12).
 - Wijkt af van het design (`f4b89fd1…`), dat een knop "Geef een beker" onder de wereld toont. De gebruiker gaat voor.
-- Upgrades (0.3) volgen hetzelfde principe: je tikt op het object dat je wilt verbeteren.
+- Upgrades volgen hetzelfde principe: je tikt op het object dat je wilt verbeteren (sinds D13 al in 0.2).
 **Status.** Besloten, gebouwd in `feature/0.2-acties-in-wereld`.
+
+## D13 — Limonade wordt een clicker
+**Context (gebruiker, 2026-11-05, na RC 3).** "Snap je het concept van de cookie clicker? Dat is in feite ook hoe ik de game wil bouwen hiermee." Daarna: "pas ook de documenten aan waar nodig en ga door met bouwen."
+**Besluit.** De kern van elk spel is tikken om te verdienen, verdiensten investeren in upgrades en automatisering, passief inkomen en stijgende prijzen. Eerst in limonade (0.2 RC 4). Gekozen standaarden (de gebruiker heeft hier niet expliciet over beslist; aan te passen bij feedback):
+- **Materialen blijven, maar automatisch.** Elke nieuwe kan boekt de ingrediënten af. Zo blijft "verkocht / materialen / over" (de leerdoelen uit `03` §3) zichtbaar in de kassa.
+- **Klanten blijven als beeld.** Per verkochte beker loopt een kind naar de kassa en weer weg. Ze zijn decoratie; geld komt alleen uit de server.
+- **Doorverdienen bij afwezigheid: maximaal 2 uur.** Past bij `03` §8 (geen onbeperkte achtergrondwinst); "Welkom terug" toont wat de hulpjes verdienden.
+- **0.2 wordt omgebouwd, niet 0.3.** RC 3 was niet goedgekeurd. De rondemechaniek van RC 1–3 vervalt; bestaande spellen worden bij het eerste gebruik omgezet (voorraad terug in munten, kan blijft).
+- **Upgrades op het object (D12).** Pijltje op de pers, bordje "hulp gezocht", plantje dat een citroenboom wordt. Tikken opent een kaart (nu → straks, prijs, saldo, "Verbeteren").
+- **Tikken eerlijk op de server.** De client telt direct mee en bundelt tikken; de server beperkt tot 12 per seconde en bepaalt de waarde.
+**Gevolg.** Contract 0.2 §4–§6 herschreven (manifest v2, commands `tap`, `buyUpgrade`, `collect`). Platform: `Ruleset::upgrade` voor oudere rulesetversies; `GET` mag afrekening in het geheugen tonen. `03` §5a, §6, §7, §8 bijgewerkt. Releaseplan 0.2/0.3 bijgesteld.
+**Status.** Besloten (concept); standaarden ter beoordeling in RC 4.
