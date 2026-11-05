@@ -64,3 +64,31 @@ describe('GameStage', () => {
     w.unmount()
   })
 })
+
+describe('front (picture-book) view', () => {
+  const b: Bounds = { minX: -5, maxX: 5, minZ: 0, maxZ: 8 }
+
+  it('fits the width and stands the picture on the bottom edge of a tall screen', () => {
+    const v = fitView(b, 400, 1000, 'front')
+    expect(v.zoom).toBeCloseTo((400 * 0.94) / 10)
+    // Screen y of world height y: H/2 - (y - target) * zoom. The bounds'
+    // bottom sits one side-margin above the screen bottom.
+    const bottomOnScreen = 1000 / 2 - (b.minZ - v.targetZ) * v.zoom
+    expect(bottomOnScreen).toBeCloseTo(1000 - 400 * 0.03)
+  })
+
+  it('centres on a wide screen', () => {
+    const v = fitView(b, 1600, 400, 'front')
+    expect(v.targetZ).toBeCloseTo(4)
+    expect(v.targetX).toBeCloseTo(0)
+  })
+
+  it('drags the picture with the finger', () => {
+    const v = panBy({ targetX: 0, targetZ: 0, zoom: 10 }, 100, 50, 'front')
+    expect(v).toEqual({ targetX: -10, targetZ: 5, zoom: 10 })
+  })
+
+  it('keeps the iso maths unchanged by default', () => {
+    expect(projectedSize(b)).toEqual(projectedSize(b, 'iso'))
+  })
+})

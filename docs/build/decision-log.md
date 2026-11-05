@@ -62,7 +62,11 @@ Per beslissing: context, besluit, gevolg, status. Nieuwste onderaan. Status "Voo
 **Context.** De designs zijn geschilderd; modellen uit code-primitieven (zoals in `~/mym`) halen dat niveau niet.
 **Opties.** (a) Modellen in code, flat-shaded; (b) glTF-modellen uit Blender, zelf gemaakt; (c) CC0-pakketten (bijv. Kenney, Quaternius) als basis. Licenties per asset vastleggen.
 **Voorstel.** Start met (a) voor R0.2 om de techniek te bewijzen; beslis vóór R0.3 over (b) of (c).
-**Status.** Open.
+**Update 2026-11-05 (feedback RC 1, F1).** De gebruiker vindt de low-poly 3D-stijl "totaal niet passend" bij de designs. Uitgevoerd in `fix/0.2-art-stijl`:
+- Three.js blijft (D3), maar de limonadewereld is een geïllustreerd vooraanzicht zoals het design: een `front`-projectie in de gedeelde stage en platte sprites (`apps/web/app/game/sprites.ts`).
+- Art: zelf getekende SVG-illustraties (`scripts/art/lemonade.mjs` → `apps/web/public/art/lemonade/`), per game in een manifest (`LEMONADE_ART`). Elke afbeelding is later te vervangen door een geschilderde PNG zonder codewijziging.
+- De isometrische projectie blijft beschikbaar voor werelden die dat beter past (bijv. boerderij-plattegrond).
+**Status.** Besloten voor 0.2 (vooraanzicht + vector-sprites). Open: of de gebruiker later geschilderde PNG's aanlevert.
 
 ## D10 — Vriendjes-ranglijst via koppelcode
 **Context.** C2. Gebruiker, 2026-11-05: een ranglijst die je kunt inzien met kinderen die dezelfde code gebruiken om te koppelen. Niet met alle gebruikers, alleen vriendjes en vriendinnetjes.
