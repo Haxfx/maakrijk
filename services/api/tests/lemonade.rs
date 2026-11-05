@@ -64,6 +64,14 @@ async fn selling_by_itself_tapping_and_upgrading_over_http() {
     assert_eq!(g["coins"], 12);
     assert_eq!(g["view"]["nextStep"], "wait");
     assert_eq!(g["view"]["perMinute"], 15);
+    // Reading a new stand does not start its clock; the first command does.
+    clock.advance(Duration::milliseconds(8000));
+    let fresh = c
+        .call(&app, "GET", &format!("/api/games/{gid}"), None)
+        .await
+        .body;
+    assert_eq!(fresh["coins"], 12);
+    assert!(fresh["view"]["settledTo"].is_null());
 
     let t = ok(&app, &c, &gid, json!({"type": "tap", "count": 4})).await;
     assert_eq!(t["coins"], 16);

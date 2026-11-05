@@ -163,7 +163,11 @@ fn sell(
 pub fn settle(m: &Manifest, s: &mut State, ctx: &mut RuleCtx) -> RuleResult<()> {
     let now = ctx.now;
     let Some(from) = s.settled_to else {
-        s.settled_to = Some(now);
+        // The clock starts with the first command; reading does not start it,
+        // so the view never shows selling the server will not book.
+        if ctx.command_id.is_some() {
+            s.settled_to = Some(now);
+        }
         return Ok(());
     };
     if now <= from {
