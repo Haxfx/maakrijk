@@ -5,6 +5,7 @@
 
 # Build output
 target/
+target-*/
 node_modules/
 .nuxt/
 .output*/

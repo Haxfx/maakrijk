@@ -40,6 +40,21 @@ cd services/api && cargo run --bin maakrijk-api
 cd apps/web && npm run dev
 ```
 
+## Dev en preview naast elkaar
+
+Dev en preview gebruiken een eigen database, eigen API-poort en eigen buildmap. Elk script weigert te starten als de poort al bezet is, en stopt nooit andere processen.
+
+| | Dev | Preview |
+|---|---|---|
+| Database | `maakrijk_dev` | `maakrijk_preview` |
+| API | `scripts/dev-api.sh` → 8800 | `scripts/preview-api.sh` → 8802 (eigen `target-preview/`) |
+| Web | `npm run dev` → 3020, of `scripts/build-web.sh dev` | `scripts/preview-web.sh` → 3022, of `scripts/build-web.sh preview` |
+| Buildmap | `apps/web/.output-dev/` | `apps/web/.output-preview/` |
+
+Welke versie draait: open `/diagnose`, of `GET /api/version` (versie, commit, contract, databasenaam, laatste migratie). Wijkt het contract af, dan toont elke pagina een rode banner. Het contractnummer staat in `services/api/src/http/version.rs` en `apps/web/nuxt.config.ts`; verhoog beide bij een niet-compatibele API-wijziging.
+
+Migraties draaien automatisch bij het starten van de API op de database van dat script.
+
 ## Tests
 
 ```bash

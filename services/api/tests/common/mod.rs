@@ -26,11 +26,15 @@ pub async fn test_pool() -> PgPool {
         "refusing to run tests against {}",
         database_name(&url)
     );
-    PgPoolOptions::new()
+    let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
         .await
-        .expect("connect to test database")
+        .expect("connect to test database");
+    maakrijk_api::db::migrate(&pool)
+        .await
+        .expect("migrate test database");
+    pool
 }
 
 pub fn test_config(url: &str) -> Config {
@@ -44,11 +48,18 @@ pub fn test_config(url: &str) -> Config {
 }
 
 pub async fn app() -> (Router, PgPool) {
+    app_with(|_| {}).await
+}
+
+/// Router on the test database with an adjusted config.
+pub async fn app_with(adjust: impl FnOnce(&mut Config)) -> (Router, PgPool) {
     let db = test_pool().await;
     let url = std::env::var("TEST_DATABASE_URL").unwrap();
+    let mut config = test_config(&url);
+    adjust(&mut config);
     let state = AppState {
         db: db.clone(),
-        config: Arc::new(test_config(&url)),
+        config: Arc::new(config),
     };
     (router(state), db)
 }

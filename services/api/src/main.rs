@@ -31,6 +31,11 @@ async fn main() {
             std::process::exit(1);
         });
 
+    if let Err(e) = maakrijk_api::db::migrate(&db).await {
+        eprintln!("migration failed on {}: {e}", config.database_name());
+        std::process::exit(1);
+    }
+
     tracing::info!(database = %config.database_name(), addr = %config.bind_addr, "starting");
     let listener = tokio::net::TcpListener::bind(config.bind_addr)
         .await
