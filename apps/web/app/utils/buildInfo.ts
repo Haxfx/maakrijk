@@ -1,3 +1,5 @@
+import type { components } from '~/types/api'
+
 export interface WebBuild {
   target: string
   gitCommit: string
@@ -6,15 +8,7 @@ export interface WebBuild {
   expectedContract: number
 }
 
-export interface ApiVersion {
-  api: string
-  gitCommit: string
-  dirty: boolean
-  buildTime: string
-  contract: number
-  database: string
-  migration: number | null
-}
+export type ApiVersion = components['schemas']['VersionInfo']
 
 export type BuildCheck = { state: 'ok' } | { state: 'older' | 'newer'; server: number; page: number } | { state: 'unknown' }
 

@@ -14,7 +14,7 @@ use crate::platform::auth::{
     self, CLIENT_HEADER, CSRF_HEADER, check_csrf, household_for_token, presented_token,
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInfo {
     pub household_id: Uuid,
@@ -26,6 +26,12 @@ pub struct SessionInfo {
 }
 
 /// Reuses a valid session, or creates a new household with a new session.
+/// Needs `X-Maakrijk: 1` (web) or `X-Maakrijk-Client: native`; only the
+/// native shell receives the token in the body.
+#[utoipa::path(
+    post, path = "/api/session", tag = "session",
+    responses((status = 200, body = SessionInfo), (status = 403, body = crate::http::error::ErrorBody))
+)]
 pub async fn ensure_session(
     State(state): State<AppState>,
     parts: Parts,

@@ -2,12 +2,9 @@ import { defineStore } from 'pinia'
 import { api, ApiError } from '~/utils/api'
 import { readLocal, writeLocal } from '~/utils/storage'
 
-export interface Profile {
-  id: string
-  nickname: string
-  avatar: string
-  createdAt: string
-}
+import type { components } from '~/types/api'
+
+export type Profile = components['schemas']['Profile']
 
 export const AVATARS = ['kid-1', 'kid-2', 'kid-3', 'kid-4', 'kid-5', 'kid-6', 'kid-7', 'kid-8'] as const
 export const MAX_PROFILES = 8

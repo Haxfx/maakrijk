@@ -14,7 +14,7 @@ pub const AVATARS: &[&str] = &[
     "kid-1", "kid-2", "kid-3", "kid-4", "kid-5", "kid-6", "kid-7", "kid-8",
 ];
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, sqlx::FromRow, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
     pub id: Uuid,
