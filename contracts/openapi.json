@@ -9,6 +9,136 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/games/{id}": {
+      "get": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Current state of a game, with time settled.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/games/{id}/commands": {
+      "post": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Run one command. Refusals return 422 with a stable code and change nothing.",
+        "operationId": "command",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
@@ -250,6 +380,127 @@
         ]
       }
     },
+    "/api/profiles/{id}/games": {
+      "get": {
+        "tags": [
+          "games"
+        ],
+        "summary": "The profile's businesses.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GameSummary"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "games"
+        ],
+        "summary": "Start a business for the profile, or return the existing one.",
+        "operationId": "start",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartGame"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          },
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/session": {
       "post": {
         "tags": [
@@ -304,6 +555,25 @@
   },
   "components": {
     "schemas": {
+      "CommandRequest": {
+        "type": "object",
+        "required": [
+          "commandId",
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "type": "object",
+            "description": "`{ \"type\": \"...\", ... }`, see the scenario contract."
+          },
+          "commandId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Client-chosen id. Retrying with the same id and payload returns the stored answer."
+          }
+        },
+        "additionalProperties": false
+      },
       "ErrorBody": {
         "type": "object",
         "description": "Every error response. `code` is stable and drives the Dutch text in the client.",
@@ -322,6 +592,77 @@
             ]
           },
           "message": {
+            "type": "string"
+          }
+        }
+      },
+      "GameResponse": {
+        "type": "object",
+        "description": "Full game read model.",
+        "required": [
+          "id",
+          "profileId",
+          "scenarioId",
+          "revision",
+          "coins",
+          "serverNow",
+          "view",
+          "events"
+        ],
+        "properties": {
+          "coins": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "What happened in this command, oldest first. For animation only."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "scenarioId": {
+            "type": "string"
+          },
+          "serverNow": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "view": {
+            "type": "object",
+            "description": "Scenario-specific read model (see the scenario's schema)."
+          }
+        }
+      },
+      "GameSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "scenarioId",
+          "coins"
+        ],
+        "properties": {
+          "coins": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scenarioId": {
             "type": "string"
           }
         }
@@ -419,6 +760,18 @@
             "description": "Only for a native shell that asked for it; web clients never see the token."
           }
         }
+      },
+      "StartGame": {
+        "type": "object",
+        "required": [
+          "scenarioId"
+        ],
+        "properties": {
+          "scenarioId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "VersionInfo": {
         "type": "object",
