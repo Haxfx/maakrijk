@@ -76,6 +76,17 @@ export const t = {
     customers: (served: number, total: number) => `Klanten ${served}/${total}`,
     sending: 'Even geduld…',
   },
+  summary: {
+    title: 'Ronde klaar!',
+    cupsSold: (cups: number, customers: number) =>
+      cups === customers ? `Je hebt alle ${customers} klanten geholpen.` : `Je hebt ${cups} van de ${customers} klanten geholpen.`,
+    sold: 'Verkocht',
+    materials: 'Materialen',
+    left: 'Over',
+    coins: 'munten',
+    explain: 'Over is wat je verdiend hebt, na de citroenen en suiker.',
+    next: 'Volgende ronde',
+  },
   stage: {
     seeAll: 'Alles bekijken',
     noWebglTitle: 'Je apparaat kan de spelwereld niet tekenen.',
