@@ -5,7 +5,7 @@
 use utoipa::OpenApi;
 use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
 
-use crate::http::{error, health, profiles, session, version};
+use crate::http::{error, games, health, profiles, session, version};
 use crate::platform;
 
 #[derive(OpenApi)]
@@ -19,6 +19,10 @@ use crate::platform;
         profiles::create,
         profiles::update,
         profiles::delete,
+        games::list,
+        games::start,
+        games::get,
+        games::command,
     ),
     components(schemas(
         error::ErrorBody,
@@ -28,6 +32,10 @@ use crate::platform;
         platform::profiles::Profile,
         profiles::NewProfile,
         profiles::ProfilePatch,
+        games::StartGame,
+        games::CommandRequest,
+        platform::games::GameSummary,
+        platform::games::GameResponse,
     )),
     modifiers(&Security)
 )]

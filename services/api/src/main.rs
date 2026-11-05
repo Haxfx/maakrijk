@@ -3,6 +3,8 @@ use std::time::Duration;
 
 use maakrijk_api::app::{AppState, router};
 use maakrijk_api::config::Config;
+use maakrijk_api::platform::clock::SystemClock;
+use maakrijk_api::platform::games::sync_definitions;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
 
@@ -36,6 +38,12 @@ async fn main() {
         std::process::exit(1);
     }
 
+    let registry = maakrijk_api::scenarios::registry();
+    if let Err(e) = sync_definitions(&db, &registry).await {
+        eprintln!("scenario definitions: {e}");
+        std::process::exit(1);
+    }
+
     tracing::info!(database = %config.database_name(), addr = %config.bind_addr, "starting");
     let listener = tokio::net::TcpListener::bind(config.bind_addr)
         .await
@@ -47,6 +55,8 @@ async fn main() {
     let state = AppState {
         db,
         config: Arc::new(config),
+        clock: Arc::new(SystemClock),
+        registry: Arc::new(registry),
     };
     axum::serve(listener, router(state))
         .with_graceful_shutdown(shutdown())

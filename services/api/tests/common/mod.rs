@@ -4,6 +4,12 @@
 
 #![allow(dead_code)]
 
+pub mod client;
+pub mod counter;
+
+#[allow(unused_imports)]
+pub use client::Client;
+
 use std::sync::Arc;
 
 use axum::Router;
@@ -12,6 +18,9 @@ use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
 use maakrijk_api::app::{AppState, router};
 use maakrijk_api::config::{Config, database_name};
+use maakrijk_api::platform::clock::ManualClock;
+use maakrijk_api::platform::games::sync_definitions;
+use maakrijk_api::platform::scenario::Registry;
 use serde_json::Value;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
@@ -52,15 +61,37 @@ pub async fn app() -> (Router, PgPool) {
 
 /// Router on the test database with an adjusted config.
 pub async fn app_with(adjust: impl FnOnce(&mut Config)) -> (Router, PgPool) {
+    let (app, db, _) = game_app_with(adjust).await;
+    (app, db)
+}
+
+/// Registry used by tests: the real scenarios plus the test-only counter.
+pub fn test_registry() -> Registry {
+    maakrijk_api::scenarios::registry().with(Arc::new(counter::Counter))
+}
+
+/// Router with a manual clock, for game tests.
+pub async fn game_app() -> (Router, PgPool, Arc<ManualClock>) {
+    game_app_with(|_| {}).await
+}
+
+pub async fn game_app_with(adjust: impl FnOnce(&mut Config)) -> (Router, PgPool, Arc<ManualClock>) {
     let db = test_pool().await;
     let url = std::env::var("TEST_DATABASE_URL").unwrap();
     let mut config = test_config(&url);
     adjust(&mut config);
+    let registry = test_registry();
+    sync_definitions(&db, &registry)
+        .await
+        .expect("sync definitions");
+    let clock = Arc::new(ManualClock::new(chrono::Utc::now()));
     let state = AppState {
         db: db.clone(),
         config: Arc::new(config),
+        clock: clock.clone(),
+        registry: Arc::new(registry),
     };
-    (router(state), db)
+    (router(state), db, clock)
 }
 
 pub struct Res {

@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/games/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current state of a game, with time settled. */
+        get: operations["get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/games/{id}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run one command. Refusals return 422 with a stable code and change nothing. */
+        post: operations["command"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -60,6 +94,24 @@ export interface paths {
         patch: operations["update"];
         trace?: never;
     };
+    "/api/profiles/{id}/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The profile's businesses. */
+        get: operations["list"];
+        put?: never;
+        /** Start a business for the profile, or return the existing one. */
+        post: operations["start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/session": {
         parameters: {
             query?: never;
@@ -101,11 +153,45 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CommandRequest: {
+            /** @description `{ "type": "...", ... }`, see the scenario contract. */
+            command: Record<string, never>;
+            /**
+             * Format: uuid
+             * @description Client-chosen id. Retrying with the same id and payload returns the stored answer.
+             */
+            commandId: string;
+        };
         /** @description Every error response. `code` is stable and drives the Dutch text in the client. */
         ErrorBody: {
             code: string;
             field?: string | null;
             message: string;
+        };
+        /** @description Full game read model. */
+        GameResponse: {
+            /** Format: int64 */
+            coins: number;
+            /** @description What happened in this command, oldest first. For animation only. */
+            events: Record<string, never>[];
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            profileId: string;
+            /** Format: int64 */
+            revision: number;
+            scenarioId: string;
+            /** Format: date-time */
+            serverNow: string;
+            /** @description Scenario-specific read model (see the scenario's schema). */
+            view: Record<string, never>;
+        };
+        GameSummary: {
+            /** Format: int64 */
+            coins: number;
+            /** Format: uuid */
+            id: string;
+            scenarioId: string;
         };
         Health: {
             status: string;
@@ -134,6 +220,9 @@ export interface components {
             /** @description Only for a native shell that asked for it; web clients never see the token. */
             token?: string | null;
         };
+        StartGame: {
+            scenarioId: string;
+        };
         VersionInfo: {
             api: string;
             buildTime: string;
@@ -158,6 +247,84 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    command: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommandRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;
@@ -302,6 +469,76 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameSummary"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartGame"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameResponse"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

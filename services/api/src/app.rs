@@ -11,6 +11,8 @@ use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
 use crate::http;
+use crate::platform::clock::Clock;
+use crate::platform::scenario::Registry;
 
 /// Request bodies above this size are refused before any handler runs.
 pub const BODY_LIMIT_BYTES: usize = 64 * 1024;
@@ -19,6 +21,8 @@ pub const BODY_LIMIT_BYTES: usize = 64 * 1024;
 pub struct AppState {
     pub db: PgPool,
     pub config: Arc<Config>,
+    pub clock: Arc<dyn Clock>,
+    pub registry: Arc<Registry>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -34,6 +38,12 @@ pub fn router(state: AppState) -> Router {
             "/profiles/{id}",
             patch(http::profiles::update).delete(http::profiles::delete),
         )
+        .route(
+            "/profiles/{id}/games",
+            get(http::games::list).post(http::games::start),
+        )
+        .route("/games/{id}", get(http::games::get))
+        .route("/games/{id}/commands", post(http::games::command))
         // Without this, unknown /api paths would fall through to the SPA page.
         .fallback(|| async { http::error::ApiError::NotFound });
 
