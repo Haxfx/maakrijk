@@ -25,12 +25,12 @@ const short = computed(() => Math.max(0, (props.upgrade.nextPrice ?? 0) - props.
     <dl class="my-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl bg-cream p-3 text-center short:my-2">
       <div>
         <dt class="text-sm font-bold text-ink-soft">{{ t.upgrade.now }}</dt>
-        <dd class="font-extrabold" data-testid="upgrade-now">{{ text.effect(upgrade.level) }}</dd>
+        <dd class="font-extrabold" data-testid="upgrade-now">{{ text.effect(upgrade.now) }}</dd>
       </div>
       <span class="text-2xl font-extrabold text-teal" aria-hidden="true">→</span>
       <div>
         <dt class="text-sm font-bold text-ink-soft">{{ t.upgrade.next }}</dt>
-        <dd class="font-extrabold text-leaf" data-testid="upgrade-next">{{ maxed ? t.upgrade.max : text.effect(upgrade.level + 1) }}</dd>
+        <dd class="font-extrabold text-leaf" data-testid="upgrade-next">{{ maxed || upgrade.next === null ? t.upgrade.max : text.effect(upgrade.next) }}</dd>
       </div>
     </dl>
     <div v-if="!maxed" class="mb-4 flex justify-between text-lg short:mb-2">

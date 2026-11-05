@@ -66,6 +66,8 @@ const JAR = { x: -2.85, y: COUNTER_TOP, scale: 0.75 }
 const CRATE = { x: -1.9, y: 0.15 }
 const TREE = { x: -3.0, y: 0, scale: 0.8 }
 const SIGN = { x: 0.65, y: -0.4 }
+/** The big lemon sign on the awning: tap it for advertising. */
+const ADVERT = { x: 0, y: 5.35 }
 /** Helpers stand behind the counter, so it hides their legs. */
 const HELPER_X = [1.0, 3.0]
 const HELPER_FEET = 1.15
@@ -84,13 +86,14 @@ export interface WorldSpot {
   h: number
 }
 
-/** press: sell; press-up / helper / tree: open the upgrade; till: stats; jug: shows cups. */
+/** press: sell; press-up / helper / advert / tree: open the upgrade; till: stats; jug: shows cups. */
 const SPOTS = {
   press: { x: PRESS.x, y: COUNTER_TOP - 0.1, w: 1.8, h: 1.25 },
   'press-up': { x: PRESS.x, y: COUNTER_TOP + 1.2, w: 0.6, h: 0.6 },
   jug: { x: JUG.x, y: COUNTER_TOP, w: 1.3, h: 1.6 },
   till: { x: TILL.x, y: COUNTER_TOP, w: 1.3, h: 1.0 },
   helper: { x: SIGN.x, y: SIGN.y, w: 1.1, h: 1.5 },
+  advert: { x: ADVERT.x, y: ADVERT.y, w: 2.2, h: 1.7 },
   tree: { x: TREE.x, y: TREE.y, w: 1.4, h: 1.6 },
 } as const
 export type SpotId = keyof typeof SPOTS
@@ -138,10 +141,12 @@ export class LemonadeWorld {
   private tree: Mesh
   private sprout: Mesh
   private sign: Mesh
+  private advert: Mesh
   private till: Mesh
   private walkers = 0
   private nextKid = 0
   private sold: number | null = null
+  private liveKey = ''
   private squeeze: Ticker | null = null
 
   constructor(private stage: Stage) {
@@ -181,7 +186,8 @@ export class LemonadeWorld {
     }
     root.add(s(a.counter, 0, 0.8, -3))
     root.add(s(a.awning, 0, 3.9, -2))
-    root.add(s(a.sign, 0, 5.35, -2.1))
+    this.advert = s(a.sign, ADVERT.x, ADVERT.y, -2.1)
+    root.add(this.advert)
 
     // On the counter: the press (tap it!), jug with a fill, cups, till, coins.
     this.press = s(a.press, PRESS.x, COUNTER_TOP, -4, PRESS.scale)
@@ -237,7 +243,15 @@ export class LemonadeWorld {
 
   /** A short "no" wobble on a refused tap. Reduced motion: nothing moves. */
   shake(id: SpotId) {
-    const obj = { press: this.press, 'press-up': this.press, jug: this.press, till: this.till, helper: this.sign, tree: this.tree.visible ? this.tree : this.sprout }[id]
+    const obj = {
+      press: this.press,
+      'press-up': this.press,
+      jug: this.press,
+      till: this.till,
+      helper: this.sign,
+      advert: this.advert,
+      tree: this.tree.visible ? this.tree : this.sprout,
+    }[id]
     const baseX = obj.position.x
     let t = 0
     this.stage.animate((dt, instant) => {
@@ -276,13 +290,24 @@ export class LemonadeWorld {
     const hasTree = level('tree') > 0
     this.tree.visible = hasTree
     this.sprout.visible = !hasTree
-    const fill = v.jugLeft / v.cupsPerJug
+    // Advertising makes the big sign grow a little per level.
+    const grow = 1 + 0.08 * level('advert')
+    this.advert.scale.set(grow, grow, 1)
+    this.stage.invalidate()
+  }
+
+  /** The live stand between server answers: jug, coins, customers per sold cup. */
+  live(l: { jugLeft: number; cupsSold: number; coins: number }, cupsPerJug: number) {
+    // Called every tick: only draw when something visible changed.
+    const key = `${l.jugLeft}/${cupsPerJug}/${Math.min(10, Math.ceil(l.coins / 10))}/${l.cupsSold}`
+    if (key === this.liveKey) return
+    this.liveKey = key
+    const fill = l.jugLeft / cupsPerJug
     this.jugFill.visible = fill > 0
     this.jugFill.scale.y = Math.max(0.01, fill)
-    this.coinPile.forEach((c, i) => (c.visible = i < Math.min(10, Math.ceil(v.coins / 10))))
-    // Customers come for the cups sold since the last answer.
-    if (this.sold !== null) this.customersFor(v.stats.cupsSold - this.sold)
-    this.sold = v.stats.cupsSold
+    this.coinPile.forEach((c, i) => (c.visible = i < Math.min(10, Math.ceil(l.coins / 10))))
+    if (this.sold !== null && l.cupsSold > this.sold) this.customersFor(l.cupsSold - this.sold)
+    this.sold = Math.max(this.sold ?? 0, l.cupsSold)
     this.stage.invalidate()
   }
 

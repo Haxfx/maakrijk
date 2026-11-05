@@ -108,3 +108,14 @@ Per beslissing: context, besluit, gevolg, status. Nieuwste onderaan. Status "Voo
 - **Tikken eerlijk op de server.** De client telt direct mee en bundelt tikken; de server beperkt tot 12 per seconde en bepaalt de waarde.
 **Gevolg.** Contract 0.2 §4–§6 herschreven (manifest v2, commands `tap`, `buyUpgrade`, `collect`). Platform: `Ruleset::upgrade` voor oudere rulesetversies; `GET` mag afrekening in het geheugen tonen. `03` §5a, §6, §7, §8 bijgewerkt. Releaseplan 0.2/0.3 bijgesteld.
 **Status.** Besloten (concept); standaarden ter beoordeling in RC 4.
+
+## D14 — De kraam verkoopt vanzelf; tikken is een extraatje
+**Context (gebruiker, 2026-11-05, feedback RC 4 G1).** "De focus blijft veel te veel op het zelf moeten blijven klikken, het moet al langzaam vanzelf gaan met upgrades en dat is niet duidelijk."
+**Besluit.** Het genre is een *idle* clicker. De kern is dat het vanzelf gaat; upgrades versnellen dat.
+- Vanaf de eerste seconde verkoopt de kraam vanzelf: 0,25 beker per seconde (15 per minuut). De klok start bij het eerste command; lezen start hem niet.
+- Upgrades: **hulpje** (+0,5 beker/s per niveau), **reclame** op het grote bord (+50% op alles wat vanzelf gaat, per niveau), **citroenboom** (goedkopere kan), **betere pers** (meer per tik).
+- Het doelkaartje en de pijl wijzen alleen naar upgrades die het vanzelf sneller of goedkoper maken. Zijn die nog niet te betalen: "Je kraam verkoopt vanzelf! Spaar voor een verbetering."
+- Zichtbaar maken: het saldo loopt live op (de client rekent precies zoals de server, vanaf `settledTo` en `carryMilli`), een balk "volgende beker" vult zich, "+2" verschijnt bij de kassa, "−4 citroenen en suiker" bij elke nieuwe kan, en de kopbalk toont "Vanzelf: +N per minuut".
+- Spellen van RC 4 (ruleset 2) gaan verder op ruleset 3. De klok begint bij de omzetting, zodat niemand uren krijgt die nog niet bestonden.
+**Gevolg.** Manifest v3 (balans `2026-11-c`), contract §4–§6 bijgewerkt, `03` §5a, §6 en §8 bijgewerkt.
+**Status.** Besloten, gebouwd in `feature/0.2-vanzelf`.
