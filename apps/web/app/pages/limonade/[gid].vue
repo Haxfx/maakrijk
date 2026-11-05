@@ -170,7 +170,7 @@ function testId(id: string): string {
           <template #badge>
             <!-- Counts on the objects themselves: lemons, sugar, cups. -->
             <span
-              v-if="s.id === 'lemons' || s.id === 'sugar'"
+              v-if="(s.id === 'lemons' && (view.stock.lemons > 0 || hintId === s.id)) || (s.id === 'sugar' && (view.stock.sugar > 0 || hintId === s.id))"
               class="badge absolute -top-3 -right-3"
               :data-testid="`${s.id}-count`"
               aria-hidden="true"
@@ -186,7 +186,7 @@ function testId(id: string): string {
               <span class="size-3.5 rounded-full bg-[#fff6c2] ring-2 ring-[#d99a1e]" />
               {{ s.id === 'lemons' ? view.prices.lemon : view.prices.sugar }}
             </span>
-            <span v-if="s.id === 'jug'" class="badge absolute -top-3 -right-4" data-testid="jug-count" role="status" :aria-label="t.lemonade.jug(view.jug.cups)">
+            <span v-if="s.id === 'jug' && view.jug.cups > 0" class="badge absolute -top-3 -right-4" data-testid="jug-count" role="status" :aria-label="t.lemonade.jug(view.jug.cups)">
               <img :src="LEMONADE_ART.cup.url" alt="" class="h-5 w-auto" />
               {{ view.jug.cups }}
             </span>
