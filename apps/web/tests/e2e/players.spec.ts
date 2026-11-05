@@ -20,7 +20,7 @@ test('create, choose, refresh, remove: the manual 0.1 scenario', async ({ page }
   await page.getByRole('button', { name: 'Spelen als Testkind A' }).click()
   await expect(page).toHaveURL(/\/start$/)
   await expect(page.getByRole('heading', { name: 'Hoi Testkind A!' })).toBeVisible()
-  await expect(page.getByTestId('no-businesses')).toBeVisible()
+  await expect(page.getByTestId('card-lemonade')).toBeVisible()
   await expect(page.getByText(/binnenkort/i)).toHaveCount(0)
 
   await page.reload()
