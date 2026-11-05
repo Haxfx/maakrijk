@@ -94,6 +94,23 @@ pub async fn game_app_with(adjust: impl FnOnce(&mut Config)) -> (Router, PgPool,
     (router(state), db, clock)
 }
 
+/// A brand-new app instance (own pool, own registry) on the same database and
+/// clock, as after a server restart.
+pub async fn restarted_app(clock: Arc<ManualClock>) -> Router {
+    let db = test_pool().await;
+    let url = std::env::var("TEST_DATABASE_URL").unwrap();
+    let registry = test_registry();
+    sync_definitions(&db, &registry)
+        .await
+        .expect("sync definitions");
+    router(AppState {
+        db,
+        config: Arc::new(test_config(&url)),
+        clock,
+        registry: Arc::new(registry),
+    })
+}
+
 pub struct Res {
     pub status: StatusCode,
     pub headers: axum::http::HeaderMap,
