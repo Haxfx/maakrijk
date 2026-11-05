@@ -12,6 +12,10 @@ path = "src/lib.rs"
 name = "maakrijk-api"
 path = "src/main.rs"
 
+[[bin]]
+name = "export-openapi"
+path = "src/bin/export_openapi.rs"
+
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }
 axum-extra = { version = "0.10", features = ["cookie"] }
@@ -29,6 +33,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal
 tower-http = { version = "0.6", features = ["fs", "trace", "limit"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+utoipa = { version = "5", features = ["uuid", "chrono"] }
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 
 [dev-dependencies]

@@ -294,3 +294,19 @@ async fn session_without_our_header_is_refused() {
     assert_eq!(res.body["code"], "csrf");
     assert!(res.headers.get(header::SET_COOKIE).is_none());
 }
+
+#[tokio::test]
+async fn malformed_body_gets_a_structured_error() {
+    let (app, _db) = common::app().await;
+    let c = Client::browser(&app).await;
+    let res = c
+        .call(
+            &app,
+            "POST",
+            "/api/profiles",
+            Some(json!({"nickname": "X", "avatar": "kid-1", "extra": 1})),
+        )
+        .await;
+    assert_eq!(res.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(res.body["code"], "invalid_body");
+}

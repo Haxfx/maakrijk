@@ -62,6 +62,23 @@ cd services/api && cargo test && cargo clippy --all-targets -- -D warnings
 cd apps/web && npm test && npm run typecheck
 ```
 
+## API-contract
+
+```bash
+cd services/api && cargo run --bin export-openapi   # schrijft contracts/openapi.json
+cd apps/web && npm run gen:api                      # genereert app/types/api.d.ts
+```
+
+`cargo test` faalt als `contracts/openapi.json` verouderd is; `npm run check:api` controleert de TS-types.
+
+## End-to-end
+
+```bash
+scripts/build-web.sh e2e
+cd apps/web && npm run e2e                 # Chromium; start zelf een API op 8801 tegen maakrijk_test
+E2E_WEBKIT=1 npm run e2e                   # ook WebKit (vereist: sudo npx playwright install-deps webkit)
+```
+
 Integratietests gebruiken `TEST_DATABASE_URL` en weigeren elke database waarvan de naam niet op `_test` eindigt.
 
 ## Poorten

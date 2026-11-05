@@ -32,7 +32,8 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 
-#[derive(Serialize)]
+/// Every error response. `code` is stable and drives the Dutch text in the client.
+#[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorBody {
     pub code: &'static str,

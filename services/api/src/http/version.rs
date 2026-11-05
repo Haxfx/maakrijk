@@ -11,7 +11,7 @@ use crate::http::error::ApiResult;
 /// `expectedContract` in `apps/web/nuxt.config.ts`.
 pub const API_CONTRACT_VERSION: u32 = 1;
 
-#[derive(Serialize)]
+#[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionInfo {
     pub api: &'static str,
@@ -25,6 +25,7 @@ pub struct VersionInfo {
     pub migration: Option<i64>,
 }
 
+#[utoipa::path(get, path = "/api/version", tag = "ops", responses((status = 200, body = VersionInfo)))]
 pub async fn version(State(state): State<AppState>) -> ApiResult<Json<VersionInfo>> {
     let migration: Option<i64> =
         sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations WHERE success")
