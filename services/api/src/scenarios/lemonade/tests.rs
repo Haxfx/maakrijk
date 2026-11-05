@@ -212,6 +212,11 @@ fn helpers_keep_selling_while_away_up_to_the_cap() {
     assert_eq!(g.last_event("HelpersSold")["cups"], 5);
     assert_eq!(g.typed().stats.cups_by_helpers, 5);
 
+    // Collecting books the helpers without a tap.
+    g.wait(4000);
+    g.send(json!({ "type": "collect" })).unwrap();
+    assert_eq!(g.typed().stats.cups_by_helpers, 7);
+
     // Away for a day: only two hours count.
     let before = g.coins;
     g.wait(24 * 3600 * 1000);
@@ -219,9 +224,8 @@ fn helpers_keep_selling_while_away_up_to_the_cap() {
     let away = g.last_event("AwayEarnings");
     assert_eq!(away["cups"], 3600);
     assert_eq!(away["capped"], true);
-    // 3600 helper cups + 1 tapped cup, jugs bought along the way.
-    assert!(g.coins > before + 3600);
-    assert!(g.coins < before + 2 * 3601);
+    // 3601 cups at 1 coin profit each, give or take one jug.
+    assert!((g.coins - before - 3601).abs() <= 4, "{}", g.coins - before);
 }
 
 #[test]

@@ -60,6 +60,9 @@ pub enum Command {
     BuyUpgrade {
         upgrade: String,
     },
+    /// Book what the helpers sold so far. Sent now and then while the child
+    /// watches, so the away cap only applies to real absence.
+    Collect {},
 }
 
 pub fn initial(m: &Manifest) -> State {
@@ -229,6 +232,7 @@ pub fn apply(m: &Manifest, s: &mut State, cmd: Command, ctx: &mut RuleCtx) -> Ru
                 json!({ "taps": taps, "ignored": count - taps, "cups": cups, "revenue": revenue, "materials": materials }),
             );
         }
+        Command::Collect {} => {}
         Command::BuyUpgrade { upgrade } => {
             let u = m
                 .upgrade(&upgrade)

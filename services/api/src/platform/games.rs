@@ -291,8 +291,9 @@ pub async fn view(
     r.settle(&mut state, &mut ctx).map_err(rule_err)?;
     // Bookings from settling (helpers selling) are shown but not written;
     // the next command settles the same time again and books them once.
-    let (coins, _, _) = ctx.into_parts();
-    response(&row, r, row.revision, coins, &state, now, &[])
+    // Its events (e.g. earnings while away) are returned for display.
+    let (coins, _, events) = ctx.into_parts();
+    response(&row, r, row.revision, coins, &state, now, &events)
 }
 
 /// Run one command through the pipeline. See the contract for the steps.
