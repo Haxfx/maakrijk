@@ -19,9 +19,13 @@ const COLLECT_MS = 60_000
  * until the server answers.
  */
 export function coinsAfterTaps(v: LemonadeView, coins: number, taps: number): number {
+  return coins + taps * v.cupsPerTap * v.cupPrice - jugsForTaps(v, taps) * v.jugCost
+}
+
+/** New jugs (each paid for its ingredients) that `taps` taps will start. */
+export function jugsForTaps(v: LemonadeView, taps: number): number {
   const cups = taps * v.cupsPerTap
-  const newJugs = cups > v.jugLeft ? Math.ceil((cups - v.jugLeft) / v.cupsPerJug) : 0
-  return coins + cups * v.cupPrice - newJugs * v.jugCost
+  return cups > v.jugLeft ? Math.ceil((cups - v.jugLeft) / v.cupsPerJug) : 0
 }
 
 /**

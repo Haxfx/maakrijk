@@ -40,6 +40,7 @@ test('tap the press to sell lemonade; coins count at once and the server agrees'
   await press(page).click()
   // +2 for the cup, -4 for the first jug's lemons and sugar.
   await expect(coins(page)).toHaveText('10 munten')
+  await expect(page.getByTestId('float-cost')).toHaveText('-4 citroenen en suiker')
   await expect(page.getByTestId('jug-count')).toHaveText('3')
   await tapPress(page, 3)
   await expect(coins(page)).toHaveText('16 munten')
