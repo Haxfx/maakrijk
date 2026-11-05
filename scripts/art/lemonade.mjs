@@ -206,14 +206,6 @@ put('jar', svg(100, 120, `
 <path d="M22 46 Q18 74 24 98" fill="none" stroke="#ffffff" stroke-width="6" stroke-opacity="0.9"/>`))
 put('sugar', svg(30, 30, `<rect x="3" y="3" width="24" height="24" rx="4" fill="#ffffff" stroke-width="3"/><path d="M8 9 L14 9" stroke="#d6eaf2" stroke-width="3"/>`))
 
-// ---------------------------------------------------------------- chalkboard
-put('chalkboard', svg(120, 160, `
-<path d="M20 150 L44 10 M100 150 L76 10" stroke-width="7" stroke="#8a5a35"/>
-<path d="M20 150 L44 10 M100 150 L76 10" stroke-width="3" stroke="#c98a3a"/>
-<rect x="18" y="20" width="84" height="96" rx="8" fill="#2f4f4a" stroke="#8a5a35" stroke-width="7"/>
-<path d="M60 40 Q78 40 78 58 Q78 76 60 76 Q42 76 42 58 Q42 40 60 40 Z" fill="none" stroke="#ffd84a" stroke-width="4"/>
-<path d="M48 88 L72 88 L68 104 L52 104 Z" fill="none" stroke="#fffcf5" stroke-width="3"/>`))
-
 // ---------------------------------------------------------------- children
 const kids = [
   { skin: '#f6d5b8', hair: '#8a4a26', style: 'pigtails', shirt: '#e9584a', bottom: '#f28aa6', skirt: true, shoe: '#5b3a24', extra: 'bag' },
@@ -263,6 +255,26 @@ ${front}
 <ellipse cx="40" cy="70" rx="7" ry="4" fill="#f28aa6" fill-opacity="0.7" stroke="none"/><ellipse cx="80" cy="70" rx="7" ry="4" fill="#f28aa6" fill-opacity="0.7" stroke="none"/>
 <path d="M50 72 Q60 82 70 72" fill="none" stroke-width="3.5"/>`))
 })
+
+
+// ---------------------------------------------------------------- open / closed sign
+// Hangs on the counter. Closed: red with a white bar. Open: green with a cup and a tick.
+const hang = (face) => svg(110, 110, `
+<path d="M30 30 L55 6 L80 30" fill="none" stroke-width="4"/>
+<circle cx="55" cy="6" r="4" fill="#8a5a35"/>
+<rect x="8" y="28" width="94" height="76" rx="12" fill="#c98a3a"/>
+${face}`)
+put('sign-closed', hang(`<circle cx="55" cy="66" r="30" fill="#e9584a"/><rect x="36" y="59" width="38" height="14" rx="4" fill="#fffcf5"/>`))
+put('sign-open', hang(`<circle cx="55" cy="66" r="30" fill="#5b963f"/>
+<path d="M42 50 L64 50 L61 82 L45 82 Z" fill="#fffcf5" stroke-width="3"/><path d="M44 60 L62 60 L60 80 L46 80 Z" fill="#ffe066" stroke="none"/>
+<path d="M66 46 L72 52 L84 38" fill="none" stroke="#fffcf5" stroke-width="5"/>`))
+
+// ---------------------------------------------------------------- "I want a cup" bubble
+put('want', svg(90, 84, `
+<path d="M10 10 L80 10 Q86 10 86 16 L86 56 Q86 62 80 62 L40 62 L24 80 L28 62 L10 62 Q4 62 4 56 L4 16 Q4 10 10 10 Z" fill="#fffcf5"/>
+<path d="M32 20 L58 20 L54 54 L36 54 Z" fill="#fffcf5" stroke-width="3"/>
+<path d="M34 30 L56 30 L54 52 L36 52 Z" fill="#ffe066" stroke="none"/>
+<path d="M50 14 L46 34" stroke="#e9584a" stroke-width="4"/>`))
 
 for (const [name, s] of Object.entries(files)) writeFileSync(`${OUT}/${name}.svg`, s)
 console.log(Object.keys(files).length, 'files')

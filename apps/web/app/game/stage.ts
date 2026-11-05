@@ -70,6 +70,7 @@ export class Stage {
   private resizeObserver?: ResizeObserver
   private pointers = new Map<number, { x: number; y: number }>()
   private pinchDistance = 0
+  private renderListeners = new Set<() => void>()
   /** Number of frames drawn, for tests and diagnostics. */
   frames = 0
 
@@ -110,6 +111,19 @@ export class Stage {
   setReducedMotion(on: boolean) {
     this.reducedMotion = on
     this.invalidate()
+  }
+
+  /** Called after every drawn frame (camera moved or something animated).
+   *  Returns a function that stops listening. */
+  onRender(cb: () => void): () => void {
+    this.renderListeners.add(cb)
+    return () => this.renderListeners.delete(cb)
+  }
+
+  /** Screen position (CSS px, relative to the canvas) of a world point. */
+  toScreen(x: number, y: number, z: number): { x: number; y: number } {
+    const v = new Vector3(x, y, z).project(this.camera)
+    return { x: ((v.x + 1) / 2) * this.width, y: ((1 - v.y) / 2) * this.height }
   }
 
   /** Run an animation until it reports it is done. */
@@ -158,6 +172,7 @@ export class Stage {
     this.canvas.removeEventListener('pointercancel', this.onPointerUp)
     this.canvas.removeEventListener('wheel', this.onWheel)
     this.tickers.clear()
+    this.renderListeners.clear()
     this.scene.traverse((o) => {
       if (o instanceof Mesh) {
         o.geometry.dispose()
@@ -189,6 +204,7 @@ export class Stage {
     }
     this.renderer.render(this.scene, this.camera)
     this.frames++
+    for (const cb of this.renderListeners) cb()
     this.dirty = false
     if (this.tickers.size > 0) this.schedule()
     else this.last = 0

@@ -13,7 +13,8 @@ import type { LemonadeCustomer, LemonadeView } from './types'
 
 /** Front view: x is left/right, "z" in Bounds is height (see view.ts). */
 export const LEMONADE_PROJECTION: Projection = 'front'
-export const LEMONADE_BOUNDS: Bounds = { minX: -5.6, maxX: 5.6, minZ: -1.1, maxZ: 7.1 }
+// Compact around the stand, so phones show it large; the rest is scenery.
+export const LEMONADE_BOUNDS: Bounds = { minX: -3.75, maxX: 3.75, minZ: -1.1, maxZ: 7.1 }
 /** Sky colour above the backdrop. */
 export const LEMONADE_BACKGROUND = '#9fd8f0'
 
@@ -46,22 +47,46 @@ export const LEMONADE_ART = {
   jarBack: A('jar-back', 1, 1.2),
   jar: A('jar', 1, 1.2),
   sugar: A('sugar', 0.3, 0.3),
-  chalkboard: A('chalkboard', 1.2, 1.6),
+  signClosed: A('sign-closed', 1.1, 1.1),
+  signOpen: A('sign-open', 1.1, 1.1),
+  want: A('want', 0.9, 0.84),
   kids: [A('kid-1', 1.35, 2.7), A('kid-2', 1.35, 2.7), A('kid-3', 1.35, 2.7), A('kid-4', 1.35, 2.7)],
 } as const
 
 // Layout (world units). y is the bottom of a sprite; z is the drawing layer.
 const COUNTER_TOP = 2.12
-const JUG = new Vector3(-0.9, COUNTER_TOP, -4)
+const JUG = new Vector3(-0.6, COUNTER_TOP, -4)
 const JUG_FILL_BOTTOM = COUNTER_TOP + 0.1
 const JUG_FILL_MAX = 1
-const TILL = new Vector3(2.1, COUNTER_TOP, -4)
+const TILL = new Vector3(2.2, COUNTER_TOP, -4)
+const JAR = { x: -2.75, y: COUNTER_TOP, scale: 0.75 }
+const CRATE = { x: -2.5, y: 0.15 }
 const FEET_Y = -0.45
 const OFF_RIGHT = 9.5
 const OFF_LEFT = -9.5
 
+/** Where the child can tap. World units: x centre, y bottom, width, height. */
+export interface WorldSpot {
+  id: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** Fixed objects the child can tap (customers are added per round). */
+const SPOTS = {
+  lemons: { x: CRATE.x, y: CRATE.y, w: 1.9, h: 1.15 },
+  sugar: { x: JAR.x, y: JAR.y, w: 0.8, h: 0.95 },
+  press: { x: -1.7, y: 2.0, w: 1.2, h: 1.0 },
+  jug: { x: JUG.x, y: COUNTER_TOP, w: 1.3, h: 1.6 },
+  board: { x: 0.1, y: 0.95, w: 1.1, h: 1.1 },
+} as const
+export type FixedSpotId = keyof typeof SPOTS
+
+/** First in line stands at the till; the rest queue to the right. */
 function queueX(i: number) {
-  return -0.6 + i * 1.35
+  return 2.2 + i * 1.35
 }
 
 const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2)
@@ -106,6 +131,8 @@ interface Customer {
   targetX: number
   /** The walk in progress; a new walk replaces it. */
   walk?: Ticker
+  /** Speech bubble with a cup while the child waits. */
+  want: Mesh
 }
 
 export class LemonadeWorld {
@@ -116,6 +143,9 @@ export class LemonadeWorld {
   private press: Mesh
   private customers = new Map<string, Customer>()
   private pressWobble: Ticker | null = null
+  private boardOpen: Mesh
+  private boardClosed: Mesh
+  private fixed: Record<FixedSpotId, Mesh | Group>
 
   constructor(private stage: Stage) {
     const s = (art: ArtItem, x = 0, y = 0, z = 0, scale = 1) => sprite(stage, art, x, y, z, scale)
@@ -132,14 +162,14 @@ export class LemonadeWorld {
 
     // Trees and bushes around the stand.
     for (const [x, y, z, sc] of [
-      [-5.7, 0.9, -7, 1.1],
-      [5.8, 1.0, -7, 1],
+      [-4.7, 1.0, -7, 1.05],
+      [4.8, 1.1, -7, 1],
       [-8.4, 0.5, -6.8, 1.25],
       [8.6, 0.6, -6.8, 1.15],
     ] as const) {
       root.add(s(a.tree, x, y, z, sc))
     }
-    root.add(s(a.bush, -6.6, -1.1, 0.5), s(a.bush, 6.7, -1.25, 0.5, 0.9))
+    root.add(s(a.bush, -4.6, -1.15, 0.5, 0.85), s(a.bush, 6.2, -1.25, 0.5, 0.9))
 
     // The stand: back wall, counter front, awning and sign.
     root.add(s(a.stallBack, 0, 0.8, -5))
@@ -148,11 +178,12 @@ export class LemonadeWorld {
     root.add(s(a.sign, 0, 5.35, -2.1))
 
     // On the counter: press, jug with a fill that rises, cups, till, coins.
-    this.press = s(a.press, -2.2, COUNTER_TOP, -4)
+    this.press = s(a.press, SPOTS.press.x, COUNTER_TOP, -4)
     root.add(this.press)
     this.jugFill = s(a.jugFill, JUG.x, JUG_FILL_BOTTOM, -4.05)
-    root.add(this.jugFill, s(a.jug, JUG.x, JUG.y, JUG.z))
-    for (const x of [0.15, 0.55, 0.95]) root.add(s(a.cupEmpty, x, COUNTER_TOP, -4))
+    const jug = s(a.jug, JUG.x, JUG.y, JUG.z)
+    root.add(this.jugFill, jug)
+    for (const x of [0.45, 0.85, 1.25]) root.add(s(a.cupEmpty, x, COUNTER_TOP, -4))
     root.add(s(a.till, TILL.x, TILL.y, TILL.z))
     for (let i = 0; i < 10; i++) {
       const c = s(a.coinFlat, TILL.x + 0.85, COUNTER_TOP + i * 0.09, -3.99 + i * 0.001)
@@ -162,35 +193,72 @@ export class LemonadeWorld {
     }
 
     // Lemon crate: 12 places in 3 rows, shown per lemon in stock.
-    root.add(s(a.crateBack, -4.4, 0.25, -1.2))
+    root.add(s(a.crateBack, CRATE.x, CRATE.y + 0.05, -1.2))
     for (let i = 0; i < 12; i++) {
       const row = Math.floor(i / 4)
       const col = i % 4
-      const l = s(a.lemon, -5.0 + col * 0.4 + (row % 2) * 0.2, 1.06 - row * 0.11, -1.15 + row * 0.01)
+      const l = s(a.lemon, CRATE.x - 0.6 + col * 0.4 + (row % 2) * 0.2, CRATE.y + 0.86 - row * 0.11, -1.15 + row * 0.01)
       l.visible = false
       this.lemons.push(l)
       root.add(l)
     }
-    root.add(s(a.crate, -4.4, 0.2, -1))
+    const crate = s(a.crate, CRATE.x, CRATE.y, -1)
+    root.add(crate)
 
-    // Sugar jar with up to 4 cubes.
-    root.add(s(a.jarBack, -2.9, 0.3, -0.97))
-    for (const [x, y] of [
-      [-3.12, 0.4],
-      [-2.82, 0.4],
-      [-2.98, 0.68],
-      [-2.72, 0.68],
+    // Sugar jar on the counter with up to 4 cubes.
+    root.add(s(a.jarBack, JAR.x, JAR.y, -4.2, JAR.scale))
+    for (const [dx, dy] of [
+      [-0.16, 0.07],
+      [0.08, 0.07],
+      [-0.05, 0.28],
+      [0.16, 0.28],
     ] as const) {
-      const c = s(a.sugar, x, y, -0.95)
+      const c = s(a.sugar, JAR.x + dx, JAR.y + dy, -4.15, JAR.scale)
       c.visible = false
       this.sugar.push(c)
       root.add(c)
     }
-    root.add(s(a.jar, -2.9, 0.3, -0.9))
+    const jar = s(a.jar, JAR.x, JAR.y, -4.1, JAR.scale)
+    root.add(jar)
 
-    root.add(s(a.chalkboard, 4.6, 0.3, -1.5))
+    // Open/closed sign on the counter: tap it to open or close the stand.
+    this.boardClosed = s(a.signClosed, SPOTS.board.x, SPOTS.board.y, -2.9)
+    this.boardOpen = s(a.signOpen, SPOTS.board.x, SPOTS.board.y, -2.89)
+    this.boardOpen.visible = false
+    root.add(this.boardClosed, this.boardOpen)
 
     stage.add(root)
+    this.fixed = { lemons: crate, sugar: jar, press: this.press, jug, board: this.boardClosed }
+  }
+
+  /** Tappable places right now, in world units. Customers follow their walk. */
+  spots(): WorldSpot[] {
+    const list: WorldSpot[] = Object.entries(SPOTS).map(([id, r]) => ({ id, ...r }))
+    for (const [key, c] of this.customers) {
+      if (!c.group.visible || c.state !== 'waiting') continue
+      list.push({ id: `customer:${key.split(':')[1]}`, x: c.group.position.x, y: c.group.position.y, w: 1.35, h: 2.7 })
+    }
+    return list
+  }
+
+  /** A short "no" wobble on a refused tap. Reduced motion: nothing moves. */
+  shake(id: string) {
+    let obj: Mesh | Group | undefined
+    if (id.startsWith('customer:')) obj = [...this.customers.entries()].find(([k]) => k.endsWith(`:${id.slice(9)}`))?.[1].group
+    else if (id === 'board') obj = this.boardOpen.visible ? this.boardOpen : this.boardClosed
+    else obj = this.fixed[id as FixedSpotId]
+    if (!obj) return
+    const baseX = obj.position.x
+    let t = 0
+    this.stage.animate((dt, instant) => {
+      t += dt
+      if (instant || t >= 0.4) {
+        obj.position.x = baseX
+        return false
+      }
+      obj.position.x = baseX + Math.sin(t * 45) * 0.06 * (1 - t / 0.4)
+      return true
+    })
   }
 
   update(v: LemonadeView) {
@@ -201,6 +269,9 @@ export class LemonadeWorld {
     this.jugFill.scale.y = Math.max(0.01, level * JUG_FILL_MAX)
     this.coinPile.forEach((c, i) => (c.visible = i < Math.min(10, Math.ceil(v.coins / 4))))
     this.setPressWorking(!!v.jug.making)
+    const open = !!v.round
+    this.boardOpen.visible = open
+    this.boardClosed.visible = !open
     // After closing, the last round's customers are still known from the summary.
     this.updateCustomers(v.round?.id ?? null, v.round?.customers ?? [])
     this.stage.invalidate()
@@ -231,6 +302,7 @@ export class LemonadeWorld {
       this.stage.add(coin)
       this.stage.animate(moveTo(coin, new Vector3(TILL.x, TILL.y + 0.7, 2), 0.6, () => this.remove(coin)))
       // The served child walks off happily, even if the round just closed.
+      c.want.visible = false
       if (c.state !== 'served') {
         c.state = 'served'
         this.leave(c, OFF_LEFT)
@@ -302,10 +374,15 @@ export class LemonadeWorld {
       seen.add(key)
       let entry = this.customers.get(key)
       if (!entry) {
-        entry = { group: this.makeCustomer(c.id), state: 'coming', targetX: OFF_RIGHT }
+        const group = this.makeCustomer(c.id)
+        const want = sprite(this.stage, LEMONADE_ART.want, 0.55, 2.45, 0.02)
+        want.visible = false
+        group.add(want)
+        entry = { group, state: 'coming', targetX: OFF_RIGHT, want }
         this.customers.set(key, entry)
       }
       const group = entry.group
+      entry.want.visible = c.state === 'waiting'
       if (c.state === 'waiting') {
         group.visible = true
         const x = queueX(slot++)
