@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* Low screens: a phone held sideways. Dialogs switch to two columns there. */
+@custom-variant short (@media (max-height: 500px));
+
 /* Design tokens. Start values from docs/01-PRODUCT-EN-ARCHITECTUUR.md §5,
    plus the header teal and warm accents seen in docs/design/. */
 @theme {

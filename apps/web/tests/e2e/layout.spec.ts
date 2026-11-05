@@ -48,7 +48,14 @@ for (const big of [false, true]) {
         await page.getByTestId('new-player').click()
         await page.getByTestId('nickname-input').fill(name)
         await page.getByRole('radio').nth(i * 2).check({ force: true })
-        if (i === 0) await shot(page, `new-player-${suffix}`)
+        if (i === 0) {
+          // The main action must be on screen without scrolling the dialog.
+          const box = await page.getByTestId('profile-submit').boundingBox()
+          expect(box, 'submit button rendered').not.toBeNull()
+          expect(box!.y + box!.height, 'submit button inside viewport').toBeLessThanOrEqual(vp.height)
+          expect(box!.y, 'submit button inside viewport').toBeGreaterThanOrEqual(0)
+          await shot(page, `new-player-${suffix}`)
+        }
         await page.getByTestId('profile-submit').click()
         await expect(page.getByRole('button', { name: `Spelen als ${name}` })).toBeVisible()
       }

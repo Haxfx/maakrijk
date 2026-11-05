@@ -16,7 +16,7 @@ function submit() {
 </script>
 
 <template>
-  <form class="flex flex-col gap-5" novalidate @submit.prevent="submit">
+  <form class="grid gap-5 short:grid-cols-2 short:gap-x-6 short:gap-y-3" novalidate @submit.prevent="submit">
     <div>
       <label :for="inputId" class="mb-1 block text-lg font-bold">{{ t.players.nickname }}</label>
       <input
@@ -35,8 +35,8 @@ function submit() {
     </div>
 
     <fieldset>
-      <legend class="mb-2 text-lg font-bold">{{ t.players.avatar }}</legend>
-      <div class="grid grid-cols-4 gap-2">
+      <legend class="mb-2 text-lg font-bold short:mb-1">{{ t.players.avatar }}</legend>
+      <div class="grid grid-cols-4 gap-2 short:gap-1 short:[&_svg]:size-11">
         <label
           v-for="(a, i) in AVATARS"
           :key="a"
@@ -49,11 +49,14 @@ function submit() {
       </div>
     </fieldset>
 
-    <p v-if="error" :id="errorId" role="alert" class="rounded-xl bg-coral/15 p-3 font-bold text-ink" data-testid="form-error">
+    <p v-if="error" :id="errorId" role="alert" class="short:col-span-2 rounded-xl bg-coral/15 p-3 font-bold text-ink" data-testid="form-error">
       {{ error }}
     </p>
 
-    <div class="flex flex-wrap justify-end gap-3">
+    <!-- Sticky, so the main action stays visible if the dialog still has to scroll. -->
+    <div
+      class="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap justify-end gap-3 border-t border-sand bg-ivory px-5 py-3 short:col-span-2 short:py-2 sm:-mx-6 sm:-mb-6 sm:px-6"
+    >
       <button type="button" class="min-h-12 rounded-full border-2 border-teal px-6 font-bold text-teal" @click="emit('cancel')">
         {{ t.common.cancel }}
       </button>
