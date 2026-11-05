@@ -22,13 +22,13 @@ onMounted(() => {
 <template>
   <dialog
     ref="el"
-    class="m-auto w-[min(32rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] rounded-[var(--radius-card)] bg-ivory p-0 text-ink shadow-2xl backdrop:bg-ink/50"
+    class="m-auto w-[min(32rem,calc(100vw-2rem))] short:w-[min(46rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] rounded-[var(--radius-card)] bg-ivory p-0 text-ink shadow-2xl backdrop:bg-ink/50"
     :aria-label="title"
     @cancel.prevent="emit('close')"
     @click.self="emit('close')"
   >
-    <div class="p-5 sm:p-6">
-      <h2 class="mb-4 text-2xl font-extrabold">{{ title }}</h2>
+    <div class="p-5 sm:p-6 short:py-3">
+      <h2 class="mb-4 text-2xl font-extrabold short:mb-2">{{ title }}</h2>
       <slot />
     </div>
   </dialog>
