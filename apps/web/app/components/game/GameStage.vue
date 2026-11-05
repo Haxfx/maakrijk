@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { Stage, hasWebGL } from '~/game/stage'
-import type { Bounds } from '~/game/view'
+import type { Bounds, Projection } from '~/game/view'
 import { t } from '~/locales/nl'
 import { useSettingsStore } from '~/stores/settings'
 
-const props = defineProps<{ bounds: Bounds; background?: string }>()
+const props = defineProps<{ bounds: Bounds; background?: string; projection?: Projection }>()
 const emit = defineEmits<{ ready: [stage: Stage] }>()
 
 const canvas = ref<HTMLCanvasElement>()
@@ -26,6 +26,7 @@ onMounted(() => {
   try {
     const s = new Stage(canvas.value, {
       bounds: props.bounds,
+      projection: props.projection,
       reducedMotion: prefersReduced(),
       background: props.background,
       onViewChange: () => {

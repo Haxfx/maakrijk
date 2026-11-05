@@ -4,7 +4,7 @@ import type { GameState } from '~/game/client'
 import type { Stage } from '~/game/stage'
 import type { LemonadeView } from '~/game/lemonade/types'
 import { useLemonade } from '~/game/lemonade/useLemonade'
-import { LEMONADE_BACKGROUND, LEMONADE_BOUNDS, LemonadeWorld } from '~/game/lemonade/world'
+import { LEMONADE_ART, LEMONADE_BACKGROUND, LEMONADE_BOUNDS, LEMONADE_PROJECTION, LemonadeWorld } from '~/game/lemonade/world'
 import { t } from '~/locales/nl'
 import { useHouseholdStore } from '~/stores/household'
 
@@ -102,7 +102,7 @@ const secondary = `${btn} bg-ivory text-teal-dark ring-2 ring-teal/40`
     <LoadState v-if="!game" class="m-4" :error="loadError" @retry="refresh()" />
     <template v-else-if="view">
       <main class="relative min-h-0 flex-1">
-        <GameStage :bounds="LEMONADE_BOUNDS" :background="LEMONADE_BACKGROUND" @ready="onStage" />
+        <GameStage :bounds="LEMONADE_BOUNDS" :background="LEMONADE_BACKGROUND" :projection="LEMONADE_PROJECTION" @ready="onStage" />
         <div
           class="pointer-events-none absolute top-2 left-2 max-w-[70%] rounded-2xl bg-ivory/95 px-4 py-2 shadow short:py-1"
           data-testid="goal"
@@ -130,13 +130,22 @@ const secondary = `${btn} bg-ivory text-teal-dark ring-2 ring-teal/40`
         <div class="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 short:flex-nowrap">
           <!-- Stock and jug -->
           <div class="flex items-center gap-4 text-base font-bold">
-            <div data-testid="stock">
-              <p class="text-xs font-extrabold tracking-wide text-ink-soft uppercase">{{ t.lemonade.stock }}</p>
-              <p>{{ t.lemonade.lemons }} {{ view.stock.lemons }} · {{ t.lemonade.sugar }} {{ view.stock.sugar }}</p>
+            <div class="flex items-center gap-2" data-testid="stock">
+              <span class="flex shrink-0 flex-col items-center" aria-hidden="true">
+                <img :src="LEMONADE_ART.lemon.url" alt="" class="h-5 w-auto" />
+                <img :src="LEMONADE_ART.sugar.url" alt="" class="mt-0.5 h-4 w-auto" />
+              </span>
+              <div>
+                <p class="text-xs font-extrabold tracking-wide text-ink-soft uppercase">{{ t.lemonade.stock }}</p>
+                <p>{{ t.lemonade.lemons }} {{ view.stock.lemons }} · {{ t.lemonade.sugar }} {{ view.stock.sugar }}</p>
+              </div>
             </div>
-            <div data-testid="jug">
-              <p class="text-xs font-extrabold tracking-wide text-ink-soft uppercase">{{ t.lemonade.inJug }}</p>
-              <p>{{ t.lemonade.cups(view.jug.cups) }}</p>
+            <div class="flex items-center gap-2" data-testid="jug">
+              <img :src="LEMONADE_ART.cup.url" alt="" aria-hidden="true" class="h-10 w-auto shrink-0" />
+              <div>
+                <p class="text-xs font-extrabold tracking-wide text-ink-soft uppercase">{{ t.lemonade.inJug }}</p>
+                <p>{{ t.lemonade.cups(view.jug.cups) }}</p>
+              </div>
             </div>
           </div>
 

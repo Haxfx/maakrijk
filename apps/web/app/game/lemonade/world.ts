@@ -1,65 +1,70 @@
 /**
- * Low-poly lemonade stand. Shows the server's view; never changes game state.
+ * Illustrated lemonade stand, seen from the front like the designs in
+ * docs/design/. Shows the server's view; never changes game state.
  * `update(view)` moves things toward what the server says; `play(events)`
  * adds short animations (cup to customer, coin to the till) that carry no value.
  */
-import {
-  BoxGeometry,
-  ConeGeometry,
-  CylinderGeometry,
-  type BufferGeometry,
-  Group,
-  IcosahedronGeometry,
-  Mesh,
-  MeshStandardMaterial,
-  PlaneGeometry,
-  SphereGeometry,
-  Vector3,
-} from 'three'
+import { Group, Mesh, MeshBasicMaterial, PlaneGeometry, Vector3 } from 'three'
 import type { Stage, Ticker } from '../stage'
-import type { Bounds } from '../view'
+import type { Bounds, Projection } from '../view'
 import type { GameEvent } from '../client'
+import { type ArtItem, sprite } from '../sprites'
 import type { LemonadeCustomer, LemonadeView } from './types'
 
-// The playable area: stand, crate, jar and the queue. The ground is much
-// larger, so the edges of the screen are always grass.
-export const LEMONADE_BOUNDS: Bounds = { minX: -4.6, maxX: 3.4, minZ: -2.4, maxZ: 3.2 }
-export const LEMONADE_BACKGROUND = '#9ccc6c'
+/** Front view: x is left/right, "z" in Bounds is height (see view.ts). */
+export const LEMONADE_PROJECTION: Projection = 'front'
+export const LEMONADE_BOUNDS: Bounds = { minX: -5.6, maxX: 5.6, minZ: -1.1, maxZ: 7.1 }
+/** Sky colour above the backdrop. */
+export const LEMONADE_BACKGROUND = '#9fd8f0'
 
-const mats = new Map<string, MeshStandardMaterial>()
-function mat(color: string, opts: { opacity?: number } = {}) {
-  const key = `${color}/${opts.opacity ?? 1}`
-  let m = mats.get(key)
-  if (!m) {
-    m = new MeshStandardMaterial({
-      color,
-      flatShading: true,
-      roughness: 0.85,
-      transparent: opts.opacity !== undefined,
-      opacity: opts.opacity ?? 1,
-    })
-    mats.set(key, m)
-  }
-  return m
+/**
+ * All lemonade art. Sizes are world units (drawn at 100 px = 1 unit).
+ * To use painted art: put a PNG with a transparent background in
+ * public/art/lemonade/ and change the url here; keep the same proportions.
+ */
+const A = (name: string, w: number, h: number): ArtItem => ({ url: `/art/lemonade/${name}.svg`, w, h })
+export const LEMONADE_ART = {
+  backdrop: A('backdrop', 40, 9),
+  ground: A('ground', 40, 3.6),
+  tree: A('tree', 2.6, 3.4),
+  bush: A('bush', 2.4, 1.3),
+  stallBack: A('stall-back', 6.4, 3.4),
+  awning: A('awning', 7.2, 1.7),
+  sign: A('sign', 2.2, 1.7),
+  counter: A('counter', 6.6, 1.4),
+  jug: A('jug', 1.3, 1.6),
+  jugFill: A('jug-fill', 0.8, 1),
+  cup: A('cup', 0.5, 0.64),
+  cupEmpty: A('cup-empty', 0.5, 0.64),
+  press: A('press', 1.2, 0.8),
+  till: A('till', 1.2, 0.9),
+  coin: A('coin', 0.5, 0.5),
+  coinFlat: A('coin-flat', 0.56, 0.22),
+  crateBack: A('crate-back', 1.9, 1),
+  crate: A('crate', 1.9, 0.9),
+  lemon: A('lemon', 0.56, 0.42),
+  jarBack: A('jar-back', 1, 1.2),
+  jar: A('jar', 1, 1.2),
+  sugar: A('sugar', 0.3, 0.3),
+  chalkboard: A('chalkboard', 1.2, 1.6),
+  kids: [A('kid-1', 1.35, 2.7), A('kid-2', 1.35, 2.7), A('kid-3', 1.35, 2.7), A('kid-4', 1.35, 2.7)],
+} as const
+
+// Layout (world units). y is the bottom of a sprite; z is the drawing layer.
+const COUNTER_TOP = 2.12
+const JUG = new Vector3(-0.9, COUNTER_TOP, -4)
+const JUG_FILL_BOTTOM = COUNTER_TOP + 0.1
+const JUG_FILL_MAX = 1
+const TILL = new Vector3(2.1, COUNTER_TOP, -4)
+const FEET_Y = -0.45
+const OFF_RIGHT = 9.5
+const OFF_LEFT = -9.5
+
+function queueX(i: number) {
+  return -0.6 + i * 1.35
 }
 
-function mesh(geo: BufferGeometry, color: string, x = 0, y = 0, z = 0, opts?: { opacity?: number }) {
-  const m = new Mesh(geo, mat(color, opts))
-  m.position.set(x, y, z)
-  return m
-}
-
-const COUNTER_Y = 1.3
-const JUG_POS = new Vector3(0.9, COUNTER_Y, -0.9)
-const TILL_POS = new Vector3(2.2, COUNTER_Y, -0.9)
-const OFF_RIGHT = new Vector3(7.5, 0, 3)
-const OFF_LEFT = new Vector3(-7.5, 0, 3.4)
-const SHIRTS = ['#e46f4f', '#4f8fe4', '#9b5fc0', '#3f9f6f']
-const SKIN = ['#f1c7a0', '#c98e62', '#8d5a3b', '#f6d5b8']
-
-function queueSlot(i: number) {
-  return new Vector3(-0.9 + i * 1.05, 0, 0.75)
-}
+const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2)
 
 /** Ease toward a target over `seconds`; jumps when motion is reduced. */
 function moveTo(obj: Group | Mesh, to: Vector3, seconds: number, done?: () => void): Ticker {
@@ -68,8 +73,7 @@ function moveTo(obj: Group | Mesh, to: Vector3, seconds: number, done?: () => vo
   return (dt, instant) => {
     t = instant ? seconds : Math.min(seconds, t + dt)
     const k = seconds === 0 ? 1 : t / seconds
-    const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2
-    obj.position.lerpVectors(from, to, e)
+    obj.position.lerpVectors(from, to, ease(k))
     if (k >= 1) {
       done?.()
       return false
@@ -78,118 +82,113 @@ function moveTo(obj: Group | Mesh, to: Vector3, seconds: number, done?: () => vo
   }
 }
 
+/** Walk with a small hop per step; reduced motion jumps to the end. */
+function walkTo(obj: Group, toX: number, seconds: number, done?: () => void): Ticker {
+  const fromX = obj.position.x
+  let t = 0
+  return (dt, instant) => {
+    t = instant ? seconds : Math.min(seconds, t + dt)
+    const k = seconds === 0 ? 1 : t / seconds
+    obj.position.x = fromX + (toX - fromX) * ease(k)
+    obj.position.y = FEET_Y + (k < 1 ? Math.abs(Math.sin(t * 11)) * 0.08 : 0)
+    if (k >= 1) {
+      done?.()
+      return false
+    }
+    return true
+  }
+}
+
+interface Customer {
+  group: Group
+  state: string
+  /** Slot target, so a moving customer is not sent twice. */
+  targetX: number
+  /** The walk in progress; a new walk replaces it. */
+  walk?: Ticker
+}
+
 export class LemonadeWorld {
   private lemons: Mesh[] = []
   private sugar: Mesh[] = []
-  private jugFill: Mesh
-  private press: Group
   private coinPile: Mesh[] = []
-  private customers = new Map<string, { group: Group; state: string }>()
-  private personGeo = {
-    body: new CylinderGeometry(0.28, 0.36, 0.9, 8),
-    head: new SphereGeometry(0.3, 10, 8),
-    hat: new CylinderGeometry(0.32, 0.32, 0.1, 10),
-  }
-  private pressSpin: Ticker | null = null
+  private jugFill: Mesh
+  private press: Mesh
+  private customers = new Map<string, Customer>()
+  private pressWobble: Ticker | null = null
 
   constructor(private stage: Stage) {
+    const s = (art: ArtItem, x = 0, y = 0, z = 0, scale = 1) => sprite(stage, art, x, y, z, scale)
+    const a = LEMONADE_ART
     const root = new Group()
-    const geo = {
-      box: new BoxGeometry(1, 1, 1),
-      lemon: new IcosahedronGeometry(0.22, 0),
-      cube: new BoxGeometry(0.26, 0.26, 0.26),
-      coin: new CylinderGeometry(0.16, 0.16, 0.06, 10),
-    }
 
-    // Ground and path.
-    const grass = mesh(new PlaneGeometry(60, 60), LEMONADE_BACKGROUND)
-    grass.rotation.x = -Math.PI / 2
-    const path = mesh(new PlaneGeometry(60, 2.6), '#e8cf98', 0, 0.01, 2.3)
-    path.rotation.x = -Math.PI / 2
-    root.add(grass, path)
+    // Sky, hills and the path.
+    root.add(s(a.backdrop, 0, 1.2, -10))
+    root.add(s(a.ground, 0, -1.9, -9))
+    // Plain grass below the path, for tall (portrait) screens.
+    const grass = new Mesh(new PlaneGeometry(80, 30), new MeshBasicMaterial({ color: '#a8d672' }))
+    grass.position.set(0, -1.8 - 15 + 0.05, -9.5)
+    root.add(grass)
 
-    // Trees at the back.
-    for (const [x, z, s] of [
-      [-5, -3.2, 1.2],
-      [4.6, -2.6, 1],
-      [-1.5, -3.6, 0.9],
-      [4.8, 0.4, 0.8],
-      [-7, 0.5, 1],
-      [-6, 5.5, 1.1],
-      [6.5, 5.5, 0.9],
-      [9, -2, 1.2],
+    // Trees and bushes around the stand.
+    for (const [x, y, z, sc] of [
+      [-5.7, 0.9, -7, 1.1],
+      [5.8, 1.0, -7, 1],
+      [-8.4, 0.5, -6.8, 1.25],
+      [8.6, 0.6, -6.8, 1.15],
     ] as const) {
-      root.add(mesh(new CylinderGeometry(0.15, 0.2, 1, 6), '#8a5a35', x, 0.5, z))
-      const crown = mesh(new IcosahedronGeometry(0.9 * s, 0), '#4f9a45', x, 1.5 + 0.4 * s, z)
-      root.add(crown)
+      root.add(s(a.tree, x, y, z, sc))
     }
+    root.add(s(a.bush, -6.6, -1.1, 0.5), s(a.bush, 6.7, -1.25, 0.5, 0.9))
 
-    // Stand: counter, posts and a striped awning.
-    const counter = mesh(geo.box, '#f2bb45', 0.3, COUNTER_Y / 2, -0.9)
-    counter.scale.set(4.4, COUNTER_Y, 1.3)
-    const front = mesh(geo.box, '#e5a52f', 0.3, 0.55, -0.22)
-    front.scale.set(4.5, 0.7, 0.08)
-    root.add(counter, front)
-    for (const x of [-1.85, 2.45]) {
-      const post = mesh(geo.box, '#c98a3a', x, 1.6, -1.45)
-      post.scale.set(0.16, 3.2, 0.16)
-      root.add(post)
-    }
-    for (let i = 0; i < 8; i++) {
-      const stripe = mesh(geo.box, i % 2 ? '#fffcf5' : '#167d8d', -1.9 + i * 0.58 + 0.29, 3.25, -1.1)
-      stripe.scale.set(0.58, 0.14, 1.6)
-      stripe.rotation.x = 0.22
-      root.add(stripe)
-    }
-    const sign = mesh(new CylinderGeometry(0.42, 0.42, 0.1, 12), '#fffcf5', 0.3, 3.75, -1.3)
-    sign.rotation.x = Math.PI / 2
-    const signLemon = mesh(geo.lemon, '#ffd84a', 0.3, 3.75, -1.2)
-    signLemon.scale.set(1.3, 0.9, 0.5)
-    root.add(sign, signLemon)
+    // The stand: back wall, counter front, awning and sign.
+    root.add(s(a.stallBack, 0, 0.8, -5))
+    root.add(s(a.counter, 0, 0.8, -3))
+    root.add(s(a.awning, 0, 3.9, -2))
+    root.add(s(a.sign, 0, 5.35, -2.1))
 
-    // Lemon crate: 12 places (4 × 3), shown per lemon in stock.
-    const crate = mesh(geo.box, '#a8743e', -3.4, 0.3, 0.2)
-    crate.scale.set(1.9, 0.6, 1.4)
-    root.add(crate)
-    for (let i = 0; i < 12; i++) {
-      const l = mesh(geo.lemon, '#ffd84a', -4.1 + (i % 4) * 0.46, 0.75, -0.2 + Math.floor(i / 4) * 0.42)
-      l.scale.set(1.15, 0.9, 0.9)
-      l.visible = false
-      this.lemons.push(l)
-      root.add(l)
-    }
-
-    // Sugar jar with 4 cubes.
-    root.add(mesh(new CylinderGeometry(0.55, 0.55, 0.9, 10), '#dff1f5', -3.4, 0.45, 1.75, { opacity: 0.55 }))
-    for (let i = 0; i < 4; i++) {
-      const c = mesh(geo.cube, '#ffffff', -3.55 + (i % 2) * 0.3, 0.15 + Math.floor(i / 2) * 0.28, 1.65 + (i % 2) * 0.12)
-      c.visible = false
-      this.sugar.push(c)
-      root.add(c)
-    }
-
-    // Jug on the counter; the yellow fill rises with the cups.
-    root.add(mesh(new CylinderGeometry(0.42, 0.36, 1, 12), '#e8f6fb', JUG_POS.x, COUNTER_Y + 0.5, JUG_POS.z, { opacity: 0.45 }))
-    this.jugFill = mesh(new CylinderGeometry(0.36, 0.33, 1, 12), '#ffe066', JUG_POS.x, COUNTER_Y, JUG_POS.z)
-    root.add(this.jugFill)
-
-    // Lemon press next to the jug; it spins while a jug is being made.
-    this.press = new Group()
-    this.press.position.set(-0.6, COUNTER_Y, -0.9)
-    this.press.add(mesh(new CylinderGeometry(0.4, 0.45, 0.25, 10), '#d9603b', 0, 0.12, 0))
-    this.press.add(mesh(new ConeGeometry(0.25, 0.4, 8), '#ffd84a', 0, 0.45, 0))
+    // On the counter: press, jug with a fill that rises, cups, till, coins.
+    this.press = s(a.press, -2.2, COUNTER_TOP, -4)
     root.add(this.press)
-
-    // Till with a coin pile.
-    const till = mesh(geo.box, '#2f7fb0', TILL_POS.x, COUNTER_Y + 0.25, TILL_POS.z)
-    till.scale.set(0.8, 0.5, 0.6)
-    root.add(till)
+    this.jugFill = s(a.jugFill, JUG.x, JUG_FILL_BOTTOM, -4.05)
+    root.add(this.jugFill, s(a.jug, JUG.x, JUG.y, JUG.z))
+    for (const x of [0.15, 0.55, 0.95]) root.add(s(a.cupEmpty, x, COUNTER_TOP, -4))
+    root.add(s(a.till, TILL.x, TILL.y, TILL.z))
     for (let i = 0; i < 10; i++) {
-      const c = mesh(geo.coin, '#f2bb45', TILL_POS.x + 0.6, COUNTER_Y + 0.04 + i * 0.065, TILL_POS.z + 0.15)
+      const c = s(a.coinFlat, TILL.x + 0.85, COUNTER_TOP + i * 0.09, -3.99 + i * 0.001)
       c.visible = false
       this.coinPile.push(c)
       root.add(c)
     }
+
+    // Lemon crate: 12 places in 3 rows, shown per lemon in stock.
+    root.add(s(a.crateBack, -4.4, 0.25, -1.2))
+    for (let i = 0; i < 12; i++) {
+      const row = Math.floor(i / 4)
+      const col = i % 4
+      const l = s(a.lemon, -5.0 + col * 0.4 + (row % 2) * 0.2, 1.06 - row * 0.11, -1.15 + row * 0.01)
+      l.visible = false
+      this.lemons.push(l)
+      root.add(l)
+    }
+    root.add(s(a.crate, -4.4, 0.2, -1))
+
+    // Sugar jar with up to 4 cubes.
+    root.add(s(a.jarBack, -2.9, 0.3, -0.97))
+    for (const [x, y] of [
+      [-3.12, 0.4],
+      [-2.82, 0.4],
+      [-2.98, 0.68],
+      [-2.72, 0.68],
+    ] as const) {
+      const c = s(a.sugar, x, y, -0.95)
+      c.visible = false
+      this.sugar.push(c)
+      root.add(c)
+    }
+    root.add(s(a.jar, -2.9, 0.3, -0.9))
+
+    root.add(s(a.chalkboard, 4.6, 0.3, -1.5))
 
     stage.add(root)
   }
@@ -199,10 +198,9 @@ export class LemonadeWorld {
     this.sugar.forEach((c, i) => (c.visible = i < v.stock.sugar))
     const level = v.jug.cups / v.capacity.jugCups
     this.jugFill.visible = level > 0
-    this.jugFill.scale.y = Math.max(0.01, level * 0.9)
-    this.jugFill.position.y = COUNTER_Y + (level * 0.9) / 2
-    this.coinPile.forEach((c, i) => (c.visible = i < Math.ceil(v.coins / 4)))
-    this.setPressSpinning(!!v.jug.making)
+    this.jugFill.scale.y = Math.max(0.01, level * JUG_FILL_MAX)
+    this.coinPile.forEach((c, i) => (c.visible = i < Math.min(10, Math.ceil(v.coins / 4))))
+    this.setPressWorking(!!v.jug.making)
     // After closing, the last round's customers are still known from the summary.
     this.updateCustomers(v.round?.id ?? null, v.round?.customers ?? [])
     this.stage.invalidate()
@@ -212,20 +210,30 @@ export class LemonadeWorld {
    *  Call before `update` with the same response. */
   play(events: GameEvent[]) {
     for (const e of events) {
-      if (e.type === 'CustomerServed') {
-        const id = (e.data as { customerId: number }).customerId
-        const c = [...this.customers.entries()].find(([k]) => k.endsWith(`:${id}`) && !k.startsWith('null'))?.[1]
-        if (!c) continue
-        const cup = mesh(new CylinderGeometry(0.14, 0.11, 0.3, 8), '#ffe066', JUG_POS.x, COUNTER_Y + 0.4, JUG_POS.z)
-        this.stage.add(cup)
-        const to = c.group.position.clone().add(new Vector3(0.3, 1.1, 0))
-        this.stage.animate(moveTo(cup, to, 0.45, () => this.remove(cup)))
-        // The served customer walks off happily, even if the round just closed.
-        if (c.state !== 'served') {
-          c.state = 'served'
-          const group = c.group
-          this.stage.animate(moveTo(group, OFF_LEFT, 1.6, () => (group.visible = false)))
-        }
+      if (e.type !== 'CustomerServed') continue
+      const id = (e.data as { customerId: number }).customerId
+      const c = [...this.customers.entries()].find(([k]) => k.endsWith(`:${id}`) && !k.startsWith('null'))?.[1]
+      if (!c) continue
+      // A cup flies from the jug into the child's hand and stays there.
+      const cup = sprite(this.stage, LEMONADE_ART.cup, JUG.x, JUG.y + 0.3, 2)
+      this.stage.add(cup)
+      const hand = new Vector3(c.group.position.x + 0.5, FEET_Y + 1.05, 2)
+      this.stage.animate(
+        moveTo(cup, hand, 0.45, () => {
+          cup.removeFromParent()
+          cup.position.set(0.5, 1.05, 0.01)
+          c.group.add(cup)
+          this.stage.invalidate()
+        }),
+      )
+      // A coin hops from the child to the till.
+      const coin = sprite(this.stage, LEMONADE_ART.coin, c.group.position.x, FEET_Y + 1.8, 2)
+      this.stage.add(coin)
+      this.stage.animate(moveTo(coin, new Vector3(TILL.x, TILL.y + 0.7, 2), 0.6, () => this.remove(coin)))
+      // The served child walks off happily, even if the round just closed.
+      if (c.state !== 'served') {
+        c.state = 'served'
+        this.leave(c, OFF_LEFT)
       }
     }
   }
@@ -236,29 +244,51 @@ export class LemonadeWorld {
     this.stage.invalidate()
   }
 
-  private setPressSpinning(on: boolean) {
-    if (on && !this.pressSpin) {
-      this.pressSpin = (dt, instant) => {
-        if (!this.pressSpin) return false
-        // With reduced motion the press stands still; the DOM shows progress.
-        if (instant) return false
-        this.press.rotation.y += dt * 4
+  /** Start a walk; it replaces any walk this customer was still doing. */
+  private walk(c: Customer, toX: number, seconds: number, done?: () => void) {
+    c.targetX = toX
+    const inner = walkTo(c.group, toX, seconds, done)
+    const ticker: Ticker = (dt, instant) => c.walk === ticker && inner(dt, instant)
+    c.walk = ticker
+    this.stage.animate(ticker)
+  }
+
+  private leave(c: Customer, toX: number, done?: () => void) {
+    const group = c.group
+    this.walk(c, toX, 1.8, () => {
+      group.visible = false
+      done?.()
+    })
+  }
+
+  /** The press wobbles while a jug is being made. Reduced motion: it stands still. */
+  private setPressWorking(on: boolean) {
+    if (on && !this.pressWobble) {
+      let t = 0
+      const wobble: Ticker = (dt, instant) => {
+        if (this.pressWobble !== wobble || instant) {
+          this.press.rotation.z = 0
+          return false
+        }
+        t += dt
+        this.press.rotation.z = Math.sin(t * 14) * 0.08
         return true
       }
-      this.stage.animate(this.pressSpin)
-    } else if (!on && this.pressSpin) {
-      this.pressSpin = null
+      this.pressWobble = wobble
+      this.stage.animate(wobble)
+    } else if (!on && this.pressWobble) {
+      this.pressWobble = null
+      this.press.rotation.z = 0
+      this.stage.invalidate()
     }
   }
 
   private makeCustomer(id: number): Group {
     const g = new Group()
-    const shirt = SHIRTS[(id - 1) % SHIRTS.length]!
-    const skin = SKIN[(id - 1) % SKIN.length]!
-    g.add(mesh(this.personGeo.body, shirt, 0, 0.55, 0))
-    g.add(mesh(this.personGeo.head, skin, 0, 1.3, 0))
-    g.add(mesh(this.personGeo.hat, '#5a3b26', 0, 1.55, 0))
-    g.position.copy(OFF_RIGHT)
+    const kids = LEMONADE_ART.kids
+    g.add(sprite(this.stage, kids[(id - 1) % kids.length]!, 0, 0, 0))
+    // Later customers stand slightly in front, so the queue overlaps nicely.
+    g.position.set(OFF_RIGHT, FEET_Y, 1 + (id % 20) * 0.02)
     g.visible = false
     this.stage.add(g)
     return g
@@ -272,17 +302,16 @@ export class LemonadeWorld {
       seen.add(key)
       let entry = this.customers.get(key)
       if (!entry) {
-        entry = { group: this.makeCustomer(c.id), state: 'coming' }
+        entry = { group: this.makeCustomer(c.id), state: 'coming', targetX: OFF_RIGHT }
         this.customers.set(key, entry)
       }
       const group = entry.group
       if (c.state === 'waiting') {
         group.visible = true
-        const target = queueSlot(slot++)
-        if (!group.position.equals(target)) this.stage.animate(moveTo(group, target, 1))
+        const x = queueX(slot++)
+        if (entry.targetX !== x) this.walk(entry, x, 1.2)
       } else if ((c.state === 'served' || c.state === 'left') && entry.state !== c.state) {
-        const exit = c.state === 'served' ? OFF_LEFT : OFF_RIGHT
-        if (group.visible) this.stage.animate(moveTo(group, exit, 1.6, () => (group.visible = false)))
+        if (group.visible) this.leave(entry, c.state === 'served' ? OFF_LEFT : OFF_RIGHT)
       }
       entry.state = c.state
     }
@@ -294,14 +323,9 @@ export class LemonadeWorld {
         entry.group.removeFromParent()
         this.stage.invalidate()
       }
-      if (entry.group.visible && entry.state === 'waiting') {
-        this.stage.animate(moveTo(entry.group, OFF_RIGHT, 1.6, done))
-      } else if (entry.group.visible && (entry.state === 'served' || entry.state === 'left')) {
-        // Already walking off; remove after the walk.
-        this.stage.animate(moveTo(entry.group, entry.state === 'served' ? OFF_LEFT : OFF_RIGHT, 1.6, done))
-      } else {
-        done()
-      }
+      if (entry.group.visible && entry.state === 'waiting') this.leave(entry, OFF_RIGHT, done)
+      else if (entry.group.visible) this.leave(entry, entry.state === 'served' ? OFF_LEFT : OFF_RIGHT, done)
+      else done()
     }
   }
 }

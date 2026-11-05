@@ -1,7 +1,8 @@
 /**
  * Shared three.js stage for every scenario (release plan 0.2 §6).
  *
- * - Orthographic isometric camera with "see everything", bounded pan and zoom.
+ * - Orthographic camera, isometric or front (picture-book) view, with "see
+ *   everything", bounded pan and zoom.
  * - One render loop. It only runs while something changes or animates, and it
  *   stops while the tab is hidden.
  * - Reduced motion: animations jump to their end, so we only draw on change.
@@ -20,7 +21,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three'
-import { type Bounds, type ViewState, clampView, fitView, panBy, sameView } from './view'
+import { type Bounds, type Projection, type ViewState, clampView, fitView, panBy, sameView } from './view'
 
 /** Pitch of the isometric camera; must match the maths in view.ts. */
 const PITCH = Math.PI / 5
@@ -33,6 +34,8 @@ export type Ticker = (dtSeconds: number, instant: boolean) => boolean
 
 export interface StageOptions {
   bounds: Bounds
+  /** 'iso' (default) or 'front' for illustrated side-view worlds. */
+  projection?: Projection
   reducedMotion: boolean
   background?: string
   /** Called after the camera moved (pan, zoom, resize, see all). */
@@ -53,6 +56,7 @@ export class Stage {
   readonly camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 200)
   private renderer: WebGLRenderer
   private bounds: Bounds
+  readonly projection: Projection
   private view: ViewState = { targetX: 0, targetZ: 0, zoom: 1 }
   private width = 1
   private height = 1
@@ -74,6 +78,7 @@ export class Stage {
     options: StageOptions,
   ) {
     this.bounds = options.bounds
+    this.projection = options.projection ?? 'iso'
     this.reducedMotion = options.reducedMotion
     this.onViewChange = options.onViewChange
     this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: false })
@@ -121,7 +126,7 @@ export class Stage {
 
   /** "Alles bekijken": show the whole world. */
   seeAll() {
-    this.setView(fitView(this.bounds, this.width, this.height))
+    this.setView(fitView(this.bounds, this.width, this.height, this.projection))
   }
 
   getView(): ViewState {
@@ -129,7 +134,7 @@ export class Stage {
   }
 
   setView(v: ViewState) {
-    const next = clampView(v, this.bounds, this.width, this.height)
+    const next = clampView(v, this.bounds, this.width, this.height, this.projection)
     if (sameView(next, this.view) && !this.dirty) return
     this.view = next
     this.applyCamera()
@@ -138,7 +143,7 @@ export class Stage {
 
   /** True when the view shows everything (used to hide "Alles bekijken"). */
   isSeeingAll(): boolean {
-    return sameView(this.view, clampView(fitView(this.bounds, this.width, this.height), this.bounds, this.width, this.height), 1e-3)
+    return sameView(this.view, clampView(fitView(this.bounds, this.width, this.height, this.projection), this.bounds, this.width, this.height, this.projection), 1e-3)
   }
 
   dispose() {
@@ -157,7 +162,10 @@ export class Stage {
       if (o instanceof Mesh) {
         o.geometry.dispose()
         const mats = Array.isArray(o.material) ? o.material : [o.material]
-        mats.forEach((m) => m.dispose())
+        mats.forEach((m) => {
+          ;(m as { map?: { dispose(): void } | null }).map?.dispose()
+          m.dispose()
+        })
       }
     })
     this.renderer.dispose()
@@ -206,8 +214,8 @@ export class Stage {
     this.width = w
     this.height = h
     this.renderer.setSize(w, h, false)
-    if (wasAll) this.view = fitView(this.bounds, w, h)
-    this.view = clampView(this.view, this.bounds, w, h)
+    if (wasAll) this.view = fitView(this.bounds, w, h, this.projection)
+    this.view = clampView(this.view, this.bounds, w, h, this.projection)
     this.applyCamera()
     this.invalidate()
   }
@@ -217,6 +225,13 @@ export class Stage {
     const halfW = this.width / 2 / zoom
     const halfH = this.height / 2 / zoom
     Object.assign(this.camera, { left: -halfW, right: halfW, top: halfH, bottom: -halfH })
+    if (this.projection === 'front') {
+      this.camera.position.set(targetX, targetZ, DISTANCE)
+      this.camera.lookAt(targetX, targetZ, 0)
+      this.camera.updateProjectionMatrix()
+      this.onViewChange?.()
+      return
+    }
     const target = new Vector3(targetX, 0, targetZ)
     const offset = new Vector3(
       Math.cos(PITCH) * Math.sin(YAW),
@@ -242,7 +257,7 @@ export class Stage {
     const next = { x: e.clientX, y: e.clientY }
     this.pointers.set(e.pointerId, next)
     if (this.pointers.size === 1) {
-      this.setView(panBy(this.view, next.x - prev.x, next.y - prev.y))
+      this.setView(panBy(this.view, next.x - prev.x, next.y - prev.y, this.projection))
     } else if (this.pointers.size === 2) {
       const d = this.currentPinch()
       if (this.pinchDistance > 0 && d > 0) {
